@@ -1,0 +1,401 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-risk-high: var(--risk-high);
+  --color-risk-high-soft: var(--risk-high-soft);
+  --color-risk-high-ink: var(--risk-high-ink);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-medium-soft: var(--risk-medium-soft);
+  --color-risk-medium-ink: var(--risk-medium-ink);
+  --color-risk-low: var(--risk-low);
+  --color-risk-low-soft: var(--risk-low-soft);
+  --color-risk-low-ink: var(--risk-low-ink);
+  --color-sand-50: var(--sand-50);
+  --color-sand-100: var(--sand-100);
+  --color-sand-200: var(--sand-200);
+  --color-sand-300: var(--sand-300);
+  --color-forest-50: var(--forest-50);
+  --color-forest-100: var(--forest-100);
+  --color-forest-700: var(--forest-700);
+  --color-forest-800: var(--forest-800);
+  --color-forest-900: var(--forest-900);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Yield AI — deep green on warm sand. Single light theme, tuned for projectors and laptops. */
+:root {
+  --sand-50: oklch(0.982 0.009 86);
+  --sand-100: oklch(0.955 0.017 86);
+  --sand-200: oklch(0.915 0.026 84);
+  --sand-300: oklch(0.86 0.036 82);
+  --forest-50: oklch(0.965 0.022 155);
+  --forest-100: oklch(0.925 0.042 155);
+  --forest-700: oklch(0.42 0.085 158);
+  --forest-800: oklch(0.34 0.07 160);
+  --forest-900: oklch(0.26 0.05 162);
+
+  --background: oklch(0.972 0.012 86);
+  --foreground: oklch(0.24 0.026 155);
+  --card: oklch(0.993 0.005 86);
+  --card-foreground: oklch(0.24 0.026 155);
+  --popover: oklch(0.993 0.005 86);
+  --popover-foreground: oklch(0.24 0.026 155);
+  --primary: oklch(0.42 0.085 158);
+  --primary-foreground: oklch(0.985 0.008 90);
+  --secondary: oklch(0.935 0.022 86);
+  --secondary-foreground: oklch(0.28 0.03 155);
+  --muted: oklch(0.948 0.016 86);
+  --muted-foreground: oklch(0.47 0.025 115);
+  --accent: oklch(0.93 0.035 152);
+  --accent-foreground: oklch(0.3 0.06 158);
+  --destructive: oklch(0.55 0.2 27);
+  --border: oklch(0.885 0.021 86);
+  --input: oklch(0.86 0.024 86);
+  --ring: oklch(0.55 0.1 158);
+  --chart-1: oklch(0.42 0.085 158);
+  --chart-2: oklch(0.66 0.15 62);
+  --chart-3: oklch(0.56 0.12 240);
+  --chart-4: oklch(0.52 0.13 320);
+  --chart-5: oklch(0.6 0.05 85);
+  --radius: 0.7rem;
+
+  --risk-high: oklch(0.56 0.19 27);
+  --risk-high-soft: oklch(0.955 0.03 27);
+  --risk-high-ink: oklch(0.46 0.17 27);
+  --risk-medium: oklch(0.72 0.15 68);
+  --risk-medium-soft: oklch(0.96 0.045 85);
+  --risk-medium-ink: oklch(0.49 0.11 60);
+  --risk-low: oklch(0.6 0.13 152);
+  --risk-low-soft: oklch(0.955 0.035 152);
+  --risk-low-ink: oklch(0.43 0.1 152);
+
+  --sidebar: oklch(0.955 0.015 86);
+  --sidebar-foreground: oklch(0.24 0.026 155);
+  --sidebar-primary: oklch(0.42 0.085 158);
+  --sidebar-primary-foreground: oklch(0.985 0.008 90);
+  --sidebar-accent: oklch(0.925 0.03 152);
+  --sidebar-accent-foreground: oklch(0.26 0.05 158);
+  --sidebar-border: oklch(0.885 0.021 86);
+  --sidebar-ring: oklch(0.55 0.1 158);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: oklch(0.85 0.08 152);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sand-300) transparent;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Leaflet
+ * ------------------------------------------------------------------------- */
+.leaflet-container {
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  background: oklch(0.9 0.02 86);
+  outline: none;
+}
+.leaflet-container .leaflet-control-attribution {
+  font-size: 10px;
+  background: oklch(1 0 0 / 0.75);
+  border-top-left-radius: 6px;
+}
+.leaflet-bar,
+.leaflet-bar a {
+  border-color: var(--border) !important;
+}
+.leaflet-touch .leaflet-bar {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.08);
+}
+.leaflet-touch .leaflet-bar a {
+  width: 32px;
+  height: 32px;
+  line-height: 30px;
+  color: var(--foreground);
+}
+
+.leaflet-div-icon.yai-divicon,
+.yai-divicon {
+  background: none;
+  border: none;
+}
+/* Half-step zoom scales the tile containers, which leaves hairline seams between tiles.
+   Overlap each tile by a pixel (normal blending, not Leaflet’s plus-lighter) to hide them. */
+.leaflet-container .leaflet-tile-pane img.leaflet-tile {
+  mix-blend-mode: normal;
+  width: 257px !important;
+  height: 257px !important;
+}
+.yai-raster {
+  pointer-events: none;
+  image-rendering: auto;
+}
+
+/* Farm pins (zoomed out): a bubble filled with the metric colour, showing the value */
+.yai-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--pin-bg);
+  color: var(--pin-fg);
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.35);
+  font: 700 11px/1 var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  transition: transform 0.15s ease;
+  cursor: pointer;
+}
+.yai-pin:hover {
+  transform: scale(1.08);
+}
+.yai-pin.is-selected {
+  font-size: 12.5px;
+  box-shadow:
+    0 0 0 3px oklch(0.26 0.05 162),
+    0 3px 10px oklch(0 0 0 / 0.4);
+}
+
+/* Farm name / delta tags floating above (or below) a pin or a field */
+.yai-tag {
+  position: absolute;
+  left: 0;
+  bottom: var(--lift, 24px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.yai-tag.is-below {
+  bottom: auto;
+  top: var(--lift, 24px);
+}
+.yai-tag-name {
+  background: oklch(0.26 0.05 162 / 0.92);
+  color: oklch(0.985 0.008 90);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.3);
+}
+.yai-tag-delta {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.3);
+}
+/* Compare badge beside an overview pin, on the side the layout picked (--r = pin radius) */
+.yai-badge {
+  position: absolute;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.yai-badge[data-side="right"] {
+  left: calc(var(--r) + 3px);
+  top: 0;
+  transform: translateY(-50%);
+}
+.yai-badge[data-side="left"] {
+  right: calc(var(--r) + 3px);
+  top: 0;
+  transform: translateY(-50%);
+}
+.yai-badge[data-side="bottom"] {
+  top: calc(var(--r) + 3px);
+  left: 0;
+  transform: translateX(-50%);
+}
+.yai-badge[data-side="top"] {
+  bottom: calc(var(--r) + 3px);
+  left: 0;
+  transform: translateX(-50%);
+}
+.yai-badge .yai-tag-delta {
+  display: block;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+/* Probe value labels drawn on the map */
+.leaflet-tooltip.yai-label {
+  background: oklch(0.99 0.004 86 / 0.94);
+  border: 1px solid oklch(0.3 0.02 155 / 0.18);
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.15);
+}
+.leaflet-tooltip.yai-label::before {
+  display: none;
+}
+.yai-delta-bad {
+  background: var(--risk-high);
+  color: white;
+}
+.yai-delta-good {
+  background: var(--risk-low);
+  color: white;
+}
+.yai-delta-neutral {
+  background: oklch(0.3 0.02 155 / 0.85);
+  color: white;
+}
+.leaflet-tooltip.yai-hover {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px oklch(0 0 0 / 0.12);
+  padding: 6px 8px;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+/* Live-mode pulse ring around a farm that just reported */
+.yai-pulse {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+.yai-pulse::before,
+.yai-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 3px solid oklch(0.72 0.17 150);
+  animation: yai-pulse 1.6s ease-out 2;
+  opacity: 0;
+}
+.yai-pulse::after {
+  animation-delay: 0.5s;
+}
+@keyframes yai-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(4.2);
+    opacity: 0;
+  }
+}
+
+@keyframes yai-flash {
+  0% {
+    background-color: oklch(0.9 0.08 150);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.yai-flash {
+  animation: yai-flash 1.8s ease-out;
+}
+
+@keyframes yai-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.yai-caret::after {
+  content: "▍";
+  margin-left: 1px;
+  color: var(--primary);
+  animation: yai-blink 0.9s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yai-pulse::before,
+  .yai-pulse::after,
+  .yai-flash,
+  .yai-caret::after {
+    animation: none;
+  }
+}
