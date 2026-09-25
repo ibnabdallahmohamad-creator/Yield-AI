@@ -36,12 +36,12 @@ export function DemoChart({ bundle, dates }: { bundle: FarmBundle; dates: string
             { value: "ph", label: "pH", icon: <FlaskConical />, title: METRICS.ph.label },
           ]}
         />
-        <p className="ml-auto text-[12.5px] text-muted-foreground tabular">
+        <p className="ml-auto text-xs text-muted-foreground tabular">
           {formatValue(metric, first)} → <span className="font-semibold text-foreground">{formatValue(metric, last)}</span>
           {delta ? (
             <span
               className={cn(
-                "ml-1.5 rounded-full px-1.5 py-px text-[11px] font-bold",
+                "ml-1.5 rounded-full px-1.5 py-px text-xs font-bold",
                 delta.tone === "bad" && "bg-risk-high-soft text-risk-high-ink",
                 delta.tone === "good" && "bg-risk-low-soft text-risk-low-ink",
                 delta.tone === "neutral" && "bg-muted text-muted-foreground",

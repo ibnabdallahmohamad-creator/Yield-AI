@@ -26,6 +26,13 @@ describe("session tokens", () => {
     await expect(verifySessionToken(await forged())).resolves.toBeNull();
   });
 
+  it("carries the optional session id and still accepts tokens without one", async () => {
+    vi.stubEnv("AUTH_SECRET", "a-test-secret-that-is-long-enough-0123456789");
+    const withSid = { ...user, sid: "session-123" };
+    await expect(verifySessionToken(await signSessionToken(withSid))).resolves.toStrictEqual(withSid);
+    await expect(verifySessionToken(await signSessionToken(user))).resolves.toStrictEqual(user);
+  });
+
   it("derives the key from the service-role key when AUTH_SECRET is missing", async () => {
     vi.stubEnv("AUTH_SECRET", "");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key-for-tests");

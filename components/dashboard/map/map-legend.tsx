@@ -31,7 +31,7 @@ function Scale({ metric, marker }: { metric: MetricDef; marker?: { value: number
           />
         ) : null}
       </div>
-      <div className="relative mt-1 h-3.5 text-[10.5px] text-muted-foreground tabular">
+      <div className="relative mt-1 h-4 text-xs text-muted-foreground tabular">
         {boundaries.map((b, i) => (
           <span key={i} className="absolute -translate-x-1/2" style={{ left: `${((i + 1) / n) * 100}%` }}>
             {boundaryLabel(metric, b)}
@@ -50,11 +50,18 @@ export function MapLegend({
   metric,
   marker,
   variant = "card",
+  info: showInfo = true,
+  action,
   className,
 }: {
   metric: MetricDef;
   marker?: { value: number | null; label: string } | null;
-  variant?: "card" | "strip";
+  /** `chip`: the compact floating legend with no controls (the method lives on Farm details → Method). */
+  variant?: "card" | "strip" | "chip";
+  /** Show the ⓘ method tip (off where every control must be a 44 px touch target). */
+  info?: boolean;
+  /** A control at the end of the strip (e.g. History on phones). */
+  action?: React.ReactNode;
   className?: string;
 }) {
   const cls = marker ? classFor(metric, marker.value) : null;
@@ -64,13 +71,13 @@ export function MapLegend({
       <span className="shrink-0 font-normal text-muted-foreground">{metric.unit === "pH" ? "" : metric.unit}</span>
     </>
   );
-  const info = (
+  const info = !showInfo ? null : (
     <InfoTip label={`About ${metric.label}`} className={variant === "card" ? "ml-auto" : undefined}>
       {metric.method}
     </InfoTip>
   );
   const readout = marker ? (
-    <p className="truncate text-[11.5px] text-muted-foreground">
+    <p className="truncate text-xs text-muted-foreground">
       <span className="font-semibold text-foreground">{formatValue(metric, marker.value)}</span>
       {cls ? ` · ${cls.label}` : ""}
       <span className="sr-only"> at {marker.label}</span>
@@ -78,10 +85,26 @@ export function MapLegend({
   ) : null;
   const note = !metric.spatial ? "Farm-level value (weather-driven)" : null;
 
+  if (variant === "chip") {
+    return (
+      <div className={cn("w-56 rounded-xl bg-card/95 px-3 pt-2 pb-1.5 shadow-md ring-1 ring-black/5 backdrop-blur-sm", className)}>
+        <div className="flex items-baseline justify-between gap-2 text-xs">
+          <span className="truncate font-semibold">{metric.label}</span>
+          <span className="shrink-0 text-muted-foreground">{metric.unit === "pH" ? "" : metric.unit}</span>
+        </div>
+        <div className="mt-1.5">
+          <Scale metric={metric} marker={marker} />
+        </div>
+        {readout}
+        {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
+      </div>
+    );
+  }
+
   if (variant === "strip") {
     return (
       <div className={cn("flex flex-wrap items-center gap-x-5 gap-y-1.5 px-3 py-2.5 sm:px-4", className)}>
-        <div className="flex min-w-0 items-center gap-1.5 text-[12px] leading-none font-semibold">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs leading-none font-semibold">
           {title}
           {info}
         </div>
@@ -90,8 +113,9 @@ export function MapLegend({
         </div>
         <div className="ml-auto min-w-0">
           {readout}
-          {note ? <p className="text-[11px] text-muted-foreground">{note}</p> : null}
+          {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
         </div>
+        {action ? <div className="order-last w-full pt-1 [&>*]:w-full">{action}</div> : null}
       </div>
     );
   }
@@ -103,7 +127,7 @@ export function MapLegend({
         className,
       )}
     >
-      <div className="flex items-center gap-1.5 text-[12px] leading-none font-semibold">
+      <div className="flex items-center gap-1.5 text-xs leading-none font-semibold">
         {title}
         {info}
       </div>
@@ -111,7 +135,7 @@ export function MapLegend({
         <Scale metric={metric} marker={marker} />
       </div>
       {marker ? <div className="mt-1">{readout}</div> : null}
-      {note ? <p className="mt-0.5 text-[11px] text-muted-foreground">{note}</p> : null}
+      {note ? <p className="mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
     </div>
   );
 }

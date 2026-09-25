@@ -255,7 +255,7 @@ export function MetricChart({
                 ifOverflow="hidden"
                 label={
                   (b.y2 - b.y1) / (domain[1] - domain[0]) > 0.16
-                    ? { value: b.label, position: "insideTopLeft", fontSize: 10.5, fill: "oklch(0.45 0.02 120)" }
+                    ? { value: b.label, position: "insideTopLeft", fontSize: 12, fill: "oklch(0.45 0.02 120)" }
                     : undefined
                 }
               />
@@ -265,7 +265,7 @@ export function MetricChart({
               dataKey="date"
               ticks={ticks}
               tickFormatter={(d: string) => formatShortDay(d)}
-              tick={{ fontSize: 11, fill: "oklch(0.47 0.025 115)" }}
+              tick={{ fontSize: 12, fill: "oklch(0.47 0.025 115)" }}
               tickLine={false}
               axisLine={{ stroke: "oklch(0.3 0.02 120 / 0.2)" }}
               minTickGap={8}
@@ -275,7 +275,7 @@ export function MetricChart({
               ticks={scale.ticks}
               allowDataOverflow
               width={scale.decimals > 0 ? 40 : 36}
-              tick={{ fontSize: 11, fill: "oklch(0.47 0.025 115)" }}
+              tick={{ fontSize: 12, fill: "oklch(0.47 0.025 115)" }}
               tickFormatter={(v: number) =>
                 v.toLocaleString("en-US", { minimumFractionDigits: scale.decimals, maximumFractionDigits: scale.decimals })
               }
@@ -343,7 +343,7 @@ export function MetricChart({
                   stroke="oklch(0.26 0.05 162)"
                   strokeWidth={1.5}
                   strokeDasharray={m.label === "Then" ? "3 3" : undefined}
-                  label={{ value: m.label, position: "insideTopRight", fontSize: 11, fontWeight: 600, fill: "oklch(0.26 0.05 162)" }}
+                  label={{ value: m.label, position: "insideTopRight", fontSize: 12, fontWeight: 600, fill: "oklch(0.26 0.05 162)" }}
                 />
               ))}
             <Tooltip

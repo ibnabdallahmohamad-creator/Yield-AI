@@ -34,6 +34,11 @@ export function formatDay(date: string): string {
   return `${WEEKDAYS[p.wd]} ${p.d} ${MONTHS[p.m - 1]}`;
 }
 
+/** "Thu" */
+export function formatWeekday(date: string): string {
+  return WEEKDAYS[parts(date).wd];
+}
+
 /** "24 Sep" */
 export function formatShortDay(date: string): string {
   const p = parts(date);
@@ -87,4 +92,24 @@ export function initials(name: string): string {
 export function fmtNum(value: number | null | undefined, decimals = 1): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+/** Split text after its first sentence ("Eq. 7" and "3.4" don't end a sentence). */
+export function splitFirstSentence(text: string): [string, string] {
+  const match = /[.!?]\s+(?=[A-Z])/.exec(text);
+  if (!match) return [text, ""];
+  const cut = match.index + 1;
+  return [text.slice(0, cut), text.slice(cut).trim()];
+}
+
+/** "1 probe", "3 probes". */
+export function plural(n: number, word: string, many = `${word}s`): string {
+  return `${n} ${n === 1 ? word : many}`;
+}
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+/** 315 → "NW": the compass point a wind direction (degrees it comes from) is closest to. */
+export function compassPoint(deg: number): string {
+  return COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 }

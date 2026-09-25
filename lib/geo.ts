@@ -38,6 +38,14 @@ export function localProjector(refLat: number, refLng: number) {
   };
 }
 
+const COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+
+/** Eight-point compass word for a bearing in degrees clockwise from north. */
+export function compassDirection(bearingDeg: number): string {
+  const i = Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8;
+  return COMPASS[i];
+}
+
 export function outerRing(polygon: GeoPolygon): LngLat[] {
   return polygon.coordinates[0];
 }

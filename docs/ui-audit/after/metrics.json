@@ -1,0 +1,759 @@
+{
+  "desktop /": {
+    "viewport": "1440x900",
+    "docHeight": 1773,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 27,
+    "interactiveAboveFold": 19,
+    "targetsUnder44AboveFold": 16,
+    "targetsUnder24AboveFold": 2,
+    "wordsAboveFold": 238,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28,
+      56
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 9,
+    "headings": [
+      "H1:Every field, every probe, one clear next",
+      "H3:Farm map",
+      "H2:Try it on demo data",
+      "H3:Soil trends",
+      "H3:Ask the agronomist",
+      "H2:How it works",
+      "H3:Probe",
+      "H3:Map",
+      "H3:AI insight",
+      "H3:Action"
+    ]
+  },
+  "desktop /login": {
+    "viewport": "1440x900",
+    "docHeight": 900,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 6,
+    "interactiveAboveFold": 6,
+    "targetsUnder44AboveFold": 6,
+    "targetsUnder24AboveFold": 1,
+    "wordsAboveFold": 88,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      15,
+      16,
+      24,
+      36
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600"
+    ],
+    "distinctTextColors": 7,
+    "headings": [
+      "H1:Welcome back"
+    ]
+  },
+  "desktop /dashboard": {
+    "viewport": "1440x900",
+    "docHeight": 1498,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 25,
+    "interactiveAboveFold": 17,
+    "targetsUnder44AboveFold": 13,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 158,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Shamal Greenhouses",
+      "H2:What to do",
+      "H2:Soil & weather"
+    ]
+  },
+  "desktop /dashboard compare": {
+    "viewport": "1440x900",
+    "docHeight": 1559,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 29,
+    "interactiveAboveFold": 22,
+    "targetsUnder44AboveFold": 13,
+    "targetsUnder24AboveFold": 3,
+    "wordsAboveFold": 202,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Shamal Greenhouses",
+      "H2:What to do",
+      "H2:Soil & weather"
+    ]
+  },
+  "desktop /dashboard/insights": {
+    "viewport": "1440x900",
+    "docHeight": 2236,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 41,
+    "interactiveAboveFold": 30,
+    "targetsUnder44AboveFold": 26,
+    "targetsUnder24AboveFold": 11,
+    "wordsAboveFold": 338,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 7,
+    "headings": [
+      "H1:Insights",
+      "H2:This week",
+      "H3:Do first6 actions",
+      "H2:Farm assessments",
+      "H2:Next season"
+    ]
+  },
+  "desktop /dashboard/insights?farm=khor-north": {
+    "viewport": "1440x900",
+    "docHeight": 1272,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 20,
+    "interactiveAboveFold": 20,
+    "targetsUnder44AboveFold": 16,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 260,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 5,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Assessment",
+      "H3:4 actions",
+      "H3:Next season",
+      "H2:Risk trend",
+      "H2:Go further"
+    ]
+  },
+  "desktop /dashboard/farm/khor-north": {
+    "viewport": "1440x900",
+    "docHeight": 1733,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 27,
+    "interactiveAboveFold": 20,
+    "targetsUnder44AboveFold": 12,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 198,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 5,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Advice",
+      "H3:4 actions",
+      "H3:Next season"
+    ]
+  },
+  "desktop /dashboard/farm/khor-north?tab=trends": {
+    "viewport": "1440x900",
+    "docHeight": 945,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 21,
+    "interactiveAboveFold": 21,
+    "targetsUnder44AboveFold": 8,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 149,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 5,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Soil & weather"
+    ]
+  },
+  "desktop /dashboard/farm/khor-north?tab=probes": {
+    "viewport": "1440x900",
+    "docHeight": 900,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 16,
+    "interactiveAboveFold": 16,
+    "targetsUnder44AboveFold": 8,
+    "targetsUnder24AboveFold": 1,
+    "wordsAboveFold": 178,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Probes"
+    ]
+  },
+  "desktop /dashboard/farm/khor-north?tab=method": {
+    "viewport": "1440x900",
+    "docHeight": 900,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 19,
+    "interactiveAboveFold": 19,
+    "targetsUnder44AboveFold": 5,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 72,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:How we calculated this",
+      "H3:Crop water use: ET₀ and ETc",
+      "H3:Salinity and yield loss",
+      "H3:Irrigation timing and depth",
+      "H3:The risk score",
+      "H3:Agronomy inputs",
+      "H3:Data sources"
+    ]
+  },
+  "desktop /dashboard/assistant?farm=khor-north": {
+    "viewport": "1440x900",
+    "docHeight": 900,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 15,
+    "interactiveAboveFold": 15,
+    "targetsUnder44AboveFold": 11,
+    "targetsUnder24AboveFold": 1,
+    "wordsAboveFold": 95,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "700"
+    ],
+    "distinctTextColors": 5,
+    "headings": [
+      "H1:New chat",
+      "H2:Ask about Al Khor North Farm"
+    ]
+  },
+  "desktop assistant answer": {
+    "viewport": "1440x900",
+    "docHeight": 900,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 21,
+    "interactiveAboveFold": 21,
+    "targetsUnder44AboveFold": 20,
+    "targetsUnder24AboveFold": 1,
+    "wordsAboveFold": 213,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H3:Today",
+      "H1:Why is salinity rising?"
+    ]
+  },
+  "laptop /dashboard": {
+    "viewport": "1280x720",
+    "docHeight": 1318,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 25,
+    "interactiveAboveFold": 17,
+    "targetsUnder44AboveFold": 13,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 152,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Shamal Greenhouses",
+      "H2:What to do",
+      "H2:Soil & weather"
+    ]
+  },
+  "laptop /dashboard/insights": {
+    "viewport": "1280x720",
+    "docHeight": 2305,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 41,
+    "interactiveAboveFold": 26,
+    "targetsUnder44AboveFold": 22,
+    "targetsUnder24AboveFold": 9,
+    "wordsAboveFold": 285,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 7,
+    "headings": [
+      "H1:Insights",
+      "H2:This week",
+      "H3:Do first6 actions",
+      "H2:Farm assessments",
+      "H2:Next season"
+    ]
+  },
+  "laptop /dashboard/farm/khor-north": {
+    "viewport": "1280x720",
+    "docHeight": 1733,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 27,
+    "interactiveAboveFold": 18,
+    "targetsUnder44AboveFold": 10,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 157,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Advice",
+      "H3:4 actions",
+      "H3:Next season"
+    ]
+  },
+  "tablet /dashboard": {
+    "viewport": "1024x768",
+    "docHeight": 1386,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 25,
+    "interactiveAboveFold": 17,
+    "targetsUnder44AboveFold": 13,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 152,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Shamal Greenhouses",
+      "H2:What to do",
+      "H2:Soil & weather"
+    ]
+  },
+  "tablet /dashboard/insights": {
+    "viewport": "1024x768",
+    "docHeight": 3082,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 41,
+    "interactiveAboveFold": 19,
+    "targetsUnder44AboveFold": 15,
+    "targetsUnder24AboveFold": 2,
+    "wordsAboveFold": 173,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Insights",
+      "H2:This week",
+      "H3:Do first6 actions",
+      "H2:Farm assessments",
+      "H2:Next season"
+    ]
+  },
+  "tablet /dashboard/farm/khor-north": {
+    "viewport": "1024x768",
+    "docHeight": 1970,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 27,
+    "interactiveAboveFold": 18,
+    "targetsUnder44AboveFold": 10,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 88,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Advice",
+      "H3:4 actions",
+      "H3:Next season"
+    ]
+  },
+  "mobile /": {
+    "viewport": "390x664",
+    "docHeight": 3418,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 25,
+    "interactiveAboveFold": 5,
+    "targetsUnder44AboveFold": 3,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 77,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      40
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:Every field, every probe, one clear next",
+      "H3:Farm map",
+      "H2:Try it on demo data",
+      "H3:Soil trends",
+      "H3:Ask the agronomist",
+      "H2:How it works",
+      "H3:Probe",
+      "H3:Map",
+      "H3:AI insight",
+      "H3:Action"
+    ]
+  },
+  "mobile /dashboard": {
+    "viewport": "390x664",
+    "docHeight": 1994,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 26,
+    "interactiveAboveFold": 12,
+    "targetsUnder44AboveFold": 0,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 92,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Shamal Greenhouses",
+      "H2:What to do",
+      "H2:Soil & weather"
+    ]
+  },
+  "mobile /dashboard/insights": {
+    "viewport": "390x664",
+    "docHeight": 4440,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 43,
+    "interactiveAboveFold": 14,
+    "targetsUnder44AboveFold": 0,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 107,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 5,
+    "headings": [
+      "H1:Insights",
+      "H2:This week",
+      "H3:Do first6 actions",
+      "H2:Farm assessments",
+      "H2:Next season"
+    ]
+  },
+  "mobile /dashboard/farm/khor-north": {
+    "viewport": "390x664",
+    "docHeight": 2373,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 27,
+    "interactiveAboveFold": 18,
+    "targetsUnder44AboveFold": 0,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 69,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      20,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Advice",
+      "H3:4 actions",
+      "H3:Next season"
+    ]
+  },
+  "mobile /dashboard/farm/khor-north?tab=probes": {
+    "viewport": "390x664",
+    "docHeight": 1111,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 16,
+    "interactiveAboveFold": 16,
+    "targetsUnder44AboveFold": 1,
+    "targetsUnder24AboveFold": 1,
+    "wordsAboveFold": 99,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500",
+      "600",
+      "700"
+    ],
+    "distinctTextColors": 6,
+    "headings": [
+      "H1:Al Khor North Farm",
+      "H2:Probes"
+    ]
+  },
+  "mobile /dashboard/assistant?farm=khor-north": {
+    "viewport": "390x664",
+    "docHeight": 805,
+    "horizontalOverflow": 0,
+    "interactiveTotal": 12,
+    "interactiveAboveFold": 12,
+    "targetsUnder44AboveFold": 0,
+    "targetsUnder24AboveFold": 0,
+    "wordsAboveFold": 71,
+    "distinctFontSizesAboveFold": [
+      12,
+      14,
+      16,
+      28
+    ],
+    "textNodesUnder12px": 0,
+    "tinySamples": [],
+    "fontWeights": [
+      "400",
+      "500"
+    ],
+    "distinctTextColors": 4,
+    "headings": [
+      "H1:New chat",
+      "H2:Ask about Al Khor North Farm"
+    ]
+  },
+  "errors": []
+}

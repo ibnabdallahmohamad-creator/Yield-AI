@@ -4,7 +4,7 @@
  */
 import "server-only";
 import { env } from "../env";
-import { AiServiceChatResponseSchema, type AiServiceChatRequest, type AiServiceChatResponse } from "./contract";
+import { AiServiceChatResponseSchema, normalizeAiServicePayload, type AiServiceChatRequest, type AiServiceChatResponse } from "./contract";
 
 const TIMEOUT_MS = 20_000;
 
@@ -25,8 +25,8 @@ export async function askAiService(body: AiServiceChatRequest): Promise<AiServic
   });
   if (!res.ok) throw new Error(`AI service HTTP ${res.status}`);
   const contentType = res.headers.get("content-type") ?? "";
-  const payload: unknown = contentType.includes("application/json") ? await res.json() : { answer: await res.text() };
-  const parsed = AiServiceChatResponseSchema.safeParse(payload);
+  const payload: unknown = contentType.includes("json") ? await res.json() : { answer: await res.text() };
+  const parsed = AiServiceChatResponseSchema.safeParse(normalizeAiServicePayload(payload));
   if (!parsed.success) throw new Error(`AI service returned an unexpected shape: ${parsed.error.issues[0]?.message}`);
   return parsed.data;
 }

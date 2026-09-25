@@ -8,6 +8,8 @@
  */
 import { CROPS, ECE_CLASSES, type MarketStatus } from "../agronomy-tables";
 import type { AiInsight, Recommendation, RiskLevel } from "../ai/contract";
+import { buildFarmFacts } from "../ai/farm-facts";
+import { buildReportSections, type ReportSections } from "../ai/report";
 import {
   cropNoun,
   dayAt,
@@ -19,7 +21,7 @@ import {
   trend,
   type ProbeExtreme,
 } from "../ai/analysis";
-import type { DashboardData, FarmBundle, FarmDay } from "../types";
+import type { DashboardData, FarmBundle, FarmDay, RiskPoint } from "../types";
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -101,12 +103,12 @@ function salinitySentence(f: FarmFacts): string | null {
   if (isLossy(day)) {
     const rise =
       f.ece30.from != null && (f.ece30.changePct ?? 0) > 5
-        ? `ECe rose from ${fmt(f.ece30.from)} to ${fmt(ece)} dS/m in ${f.ece30.days} days (${signedPct(f.ece30.changePct)})`
-        : `ECe is ${fmt(ece)} dS/m`;
-    return `${rise} — ${cls} and above the ${fmt(threshold)} dS/m ${crop} threshold, so the predicted yield loss is ${fmt(day.yieldLoss, 0)}%.`;
+        ? `Salt in the soil rose from ${fmt(f.ece30.from)} to ${fmt(ece)} dS/m in ${f.ece30.days} days (${signedPct(f.ece30.changePct)})`
+        : `Salt in the soil is at ${fmt(ece)} dS/m`;
+    return `${rise}, above the ${fmt(threshold)} dS/m ${crop} limit, so about ${fmt(day.yieldLoss, 0)}% of the yield is at risk (${cls} soil).`;
   }
   if (ece >= 0.85 * threshold) {
-    return `Salinity (ECe ${fmt(ece, 2)} dS/m) is right at the ${fmt(threshold)} dS/m ${crop} threshold: no yield loss yet, but any further rise will start to cost yield.`;
+    return `Salt in the soil (${fmt(ece, 2)} dS/m) is right at the ${fmt(threshold)} dS/m ${crop} limit: no yield lost yet, but any further rise will start to cost yield.`;
   }
   return null;
 }
@@ -118,7 +120,13 @@ function waterSentence(f: FarmFacts): string | null {
     f.moisture30.from != null && (f.moisture30.changePct ?? 0) < -5
       ? ` Soil moisture fell from ${fmt(f.moisture30.from)}% to ${fmt(day.moisture)}% in ${f.moisture30.days} days.`
       : "";
-  return `The root zone is depleted to ${fmt(day.deficitPct, 0)}% of readily available water (Ks ${fmt(day.ks, 2)}), so the ${cropNoun(f.bundle.farm.main_crop)} crop is water-stressed now.${fall}`;
+  return `The soil is too dry, so the ${cropNoun(f.bundle.farm.main_crop)} crop is water-stressed now and using about ${fmt((1 - (day.ks ?? 1)) * 100, 0)}% less water than it needs.${fall}`;
+}
+
+/** ", plus 4 mm to flush salt" when the gross depth includes a leaching share. */
+function leachText(day: FarmDay): string {
+  const leach = day.grossDepth != null && day.netDepth != null ? Math.round(day.grossDepth) - Math.round(day.netDepth) : 0;
+  return leach >= 1 ? `, plus ${leach} mm to flush salt` : "";
 }
 
 function buildRecommendations(f: FarmFacts): Recommendation[] {
@@ -131,21 +139,21 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
 
   if (stressed) {
     recs.push({
-      title: `Irrigate today: ${fmt(day.netDepth, 0)} mm net (${fmt(day.grossDepth, 0)} mm gross)`,
-      detail: `Root-zone depletion is ${fmt(day.dr, 0)} mm against a readily available water of ${fmt(day.raw, 0)} mm; Ks ${fmt(day.ks, 2)} means crop transpiration is already down about ${fmt((1 - (day.ks ?? 1)) * 100, 0)}%. Refill the root zone to field capacity (FAO-56 Eq. 84–87).`,
+      title: `Irrigate today: ${fmt(day.grossDepth, 0)} mm`,
+      detail: `The crop is short of water and already using about ${fmt((1 - (day.ks ?? 1)) * 100, 0)}% less than it needs. Apply ${fmt(day.netDepth, 0)} mm to refill the root zone${leachText(day)}. Root-zone depletion is ${fmt(day.dr, 0)} mm against ${fmt(day.raw, 0)} mm of readily available water (Ks ${fmt(day.ks, 2)}, FAO-56 Eq. 84–87).`,
       priority: "high",
     });
     if (f.driest && f.driest.location !== "centre") {
       recs.push({
         title: `Check the irrigation lines in the ${f.driest.location} block`,
-        detail: `Probe ${f.driest.sensor.id} is the driest at ${fmt(f.driest.sensor.moisture)}% VWC (${fmt(f.driest.value, 0)}% of RAW depleted). A blocked lateral, a leak or low pressure is likely if other blocks stay wetter.`,
+        detail: `Probe ${f.driest.sensor.id} there is the driest on the farm, at ${fmt(f.driest.sensor.moisture)}% moisture. A blocked lateral, a leak or low pressure is likely if other blocks stay wetter. It has used ${fmt(f.driest.value, 0)}% of its readily available water (RAW).`,
         priority: "high",
       });
     }
     if (day.etc != null && day.raw > 0) {
       recs.push({
         title: "Irrigate more often, in smaller doses",
-        detail: `At ${fmt(day.etc)} mm/day crop water use, the ${fmt(day.raw, 0)} mm of readily available water in this ${farm.soil_type.replace("_", " ")} lasts about ${fmt(day.raw / day.etc, 1)} day(s). Split irrigation into two pulses a day during the hot months.`,
+        detail: `This ${farm.soil_type.replace("_", " ")} holds only about ${fmt(day.raw / day.etc, 1)} days of water the crop can easily use. Split irrigation into two pulses a day during the hot months. That is ${fmt(day.raw, 0)} mm of readily available water at ${fmt(day.etc)} mm a day of crop water use.`,
         priority: "medium",
       });
     }
@@ -154,27 +162,27 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
   if (lossy && ece != null) {
     recs.push({
       title: `Apply a leaching irrigation (+${fmt(lrPct, 0)}% water)`,
-      detail: `Irrigate ${fmt(day.grossDepth, 0)} mm instead of ${fmt(day.netDepth, 0)} mm at the next cycle. With irrigation water at ECw ${fmt(farm.irrigation_water_ec)} dS/m, a leaching requirement of ${fmt(lrPct, 0)}% keeps root-zone ECe near ${fmt(day.eceTarget)} dS/m (FAO-29 Eq. 7, 90% yield target).`,
+      detail: `Irrigate ${fmt(day.grossDepth, 0)} mm instead of ${fmt(day.netDepth, 0)} mm at the next cycle to flush salt. With irrigation water at ECw ${fmt(farm.irrigation_water_ec)} dS/m, a leaching requirement of ${fmt(lrPct, 0)}% keeps root-zone ECe near ${fmt(day.eceTarget)} dS/m (FAO-29 Eq. 7, 90% yield target).`,
       priority: "high",
     });
     if (f.saltiest && f.saltiest.location !== "centre") {
       recs.push({
-        title: `Inspect the ${f.saltiest.location} hotspot around ${f.saltiest.sensor.id}`,
-        detail: `ECe there is ${fmt(f.saltiest.value)} dS/m against a farm mean of ${fmt(ece)} dS/m. Check emitters for clogging or poor uniformity, and take a lab saturated-paste sample to confirm the probe calibration.`,
+        title: `Inspect the salty patch in the ${f.saltiest.location}, around ${f.saltiest.sensor.id}`,
+        detail: `The soil there is saltier than the rest of the farm: ${fmt(f.saltiest.value)} dS/m against a farm mean of ${fmt(ece)} dS/m. Check emitters for clogging or poor uniformity, and take a lab saturated-paste sample to confirm the probe calibration.`,
         priority: "high",
       });
     }
     if (farm.irrigation_water_ec > 1.5) {
       recs.push({
         title: "Lower the salt load of the irrigation water",
-        detail: `Irrigation water at ${fmt(farm.irrigation_water_ec)} dS/m is the main salt source. Blending it with desalinated or treated water reduces the leaching requirement and the salt added with every irrigation.`,
+        detail: `Most of the salt arrives with the irrigation water (${fmt(farm.irrigation_water_ec)} dS/m). Blending it with desalinated or treated water reduces the leaching requirement and the salt added with every irrigation.`,
         priority: "medium",
       });
     }
   } else if (ece != null && ece >= 0.85 * threshold) {
     recs.push({
-      title: "Hold salinity below the threshold",
-      detail: `ECe ${fmt(ece, 2)} dS/m is at the ${fmt(threshold)} dS/m ${cropNoun(farm.main_crop)} threshold. Keep the leaching fraction at ${fmt(lrPct, 0)}% (${fmt(day.grossDepth, 0)} mm gross per irrigation) and re-check after the next irrigations.`,
+      title: `Keep salt below the ${cropNoun(farm.main_crop)} limit`,
+      detail: `Salt is right at the level where ${cropNoun(farm.main_crop)} yields start to fall (${fmt(ece, 2)} against ${fmt(threshold)} dS/m). Keep the leaching fraction at ${fmt(lrPct, 0)}% (${fmt(day.grossDepth, 0)} mm gross per irrigation) and re-check after the next irrigations.`,
       priority: "medium",
     });
   }
@@ -184,7 +192,7 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
       day.daysToIrrigation < 0.5 ? "today" : day.daysToIrrigation < 1.5 ? "in about a day" : `in about ${fmt(day.daysToIrrigation, 0)} days`;
     recs.push({
       title: `Next irrigation ${when}: ${fmt(day.grossDepth, 0)} mm`,
-      detail: `Depletion is ${fmt(day.dr, 0)} of ${fmt(day.raw, 0)} mm readily available water at ${fmt(day.etc)} mm/day crop water use. Apply ${fmt(day.netDepth, 0)} mm net plus the ${fmt(lrPct, 0)}% leaching fraction.`,
+      detail: `The crop has used ${fmt(day.dr, 0)} of the ${fmt(day.raw, 0)} mm of water it can easily reach, at ${fmt(day.etc)} mm a day. Apply ${fmt(day.netDepth, 0)} mm to refill the root zone${leachText(day)}.`,
       priority: day.daysToIrrigation < 1 ? "medium" : "low",
     });
   }
@@ -192,15 +200,15 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
   if ((f.k30.changePct ?? 0) < -8 && f.k30.from != null) {
     recs.push({
       title: "Top up potassium in the next fertigation",
-      detail: `K fell from ${fmt(f.k30.from, 0)} to ${fmt(f.k30.to, 0)} mg/kg in ${f.k30.days} days. Adequate potassium also helps the crop cope with salt stress.`,
+      detail: `Potassium fell from ${fmt(f.k30.from, 0)} to ${fmt(f.k30.to, 0)} mg/kg in ${f.k30.days} days. Enough potassium also helps the crop cope with salt.`,
       priority: "medium",
     });
   }
 
   if (day.ph != null && day.ph > 8.0) {
     recs.push({
-      title: `Watch alkalinity (pH ${fmt(day.ph, 2)})`,
-      detail: `pH ${f.ph30.change != null && f.ph30.change > 0.05 ? `rose ${fmt(f.ph30.change, 2)} units in ${f.ph30.days} days and ` : ""}is above 8.0, where phosphorus and micronutrients (Fe, Zn, Mn) become less available. Prefer acid-forming fertilisers such as ammonium sulphate.`,
+      title: `Watch soil alkalinity (pH ${fmt(day.ph, 2)})`,
+      detail: `The soil is alkaline, so the crop takes up less phosphorus, iron, zinc and manganese. pH ${f.ph30.change != null && f.ph30.change > 0.05 ? `rose ${fmt(f.ph30.change, 2)} units in ${f.ph30.days} days and ` : ""}is above 8.0. Prefer acid-forming fertilisers such as ammonium sulphate.`,
       priority: "low",
     });
   }
@@ -208,7 +216,7 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
   if (recs.length < 2) {
     recs.push({
       title: "Keep the current schedule",
-      detail: `All ${day.sensors.length} probes are within range. Keep monitoring salinity and moisture after each irrigation.`,
+      detail: `${day.sensors.length === 1 ? "The probe is" : `All ${day.sensors.length} probes are`} within range. Keep monitoring salinity and moisture after each irrigation.`,
       priority: "low",
     });
   }
@@ -217,15 +225,16 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
   return recs.sort((a, b) => order[a.priority] - order[b.priority]).slice(0, 4);
 }
 
-function marketContrast(best: keyof typeof CROPS, current: keyof typeof CROPS): string {
+/** Why the market favours the switch, as a sentence (null when it doesn't). */
+function marketContrast(best: keyof typeof CROPS, current: keyof typeof CROPS): string | null {
   const b: MarketStatus = CROPS[best].market.status;
   const c: MarketStatus = CROPS[current].market.status;
   const bn = CROPS[best].name.toLowerCase();
   const cn = CROPS[current].name.toLowerCase();
-  if (b === "undersupplied" && c === "oversupplied") return `, and Qatar is short of ${bn} while ${cn} is oversupplied`;
-  if (b === "undersupplied") return `, and Qatar's market is short of ${bn}`;
-  if (c === "oversupplied") return `, and unlike ${cn} it is not oversupplied in Qatar`;
-  return "";
+  if (b === "undersupplied" && c === "oversupplied") return `Qatar is short of ${bn} while ${cn} is oversupplied.`;
+  if (b === "undersupplied") return `Qatar's market is short of ${bn}.`;
+  if (c === "oversupplied") return `Unlike ${cn}, it is not oversupplied in Qatar.`;
+  return null;
 }
 
 function buildCropSuggestion(f: FarmFacts): AiInsight["crop_suggestion"] {
@@ -237,30 +246,35 @@ function buildCropSuggestion(f: FarmFacts): AiInsight["crop_suggestion"] {
   const currentOption = ranked.find((o) => o.crop === farm.main_crop);
   const keep = !currentOption || best.crop === farm.main_crop || best.score - currentOption.score < 3;
   const bestCrop = CROPS[best.crop];
-  const tol = (crop: typeof current) =>
-    `${crop.name.toLowerCase()} (${fmt(crop.salinity.threshold_dS_per_m)} dS/m threshold, ${crop.salinity.source.split(" (")[0]})`;
+  const cn = current.name.toLowerCase();
 
+  // Plain words here; the salt-tolerance tables and sources are on Farm details → Method.
   if (keep) {
     const cur = currentOption ?? best;
     const why =
       (f.day.deficitPct ?? 0) > 100
-        ? `The yield risk here is water, not the crop choice: salinity (${fmt(f.ece)} dS/m) keeps ${current.name.toLowerCase()} at ~${fmt(cur.relativeYield, 0)}% of its yield potential.`
-        : `At ECe ${fmt(f.ece)} dS/m ${current.name.toLowerCase()} keeps ~${fmt(cur.relativeYield, 0)}% of its yield potential (${current.salinity.source.split(" (")[0]}).`;
+        ? `The risk here is water, not the crop: at this salinity ${cn} still reaches about ${fmt(cur.relativeYield, 0)}% of its full yield.`
+        : `At ${fmt(f.ece)} dS/m it still reaches about ${fmt(cur.relativeYield, 0)}% of its full yield.`;
     return {
       crop: current.name,
-      reason: `Keep ${current.name.toLowerCase()}. ${why}`,
+      reason: `Keep ${cn}. ${why}`,
       market_note: current.market.note,
     };
   }
   const reason =
     best.relativeYield - (currentOption?.relativeYield ?? 0) > 5
-      ? `At ECe ${fmt(f.ece)} dS/m, ${tol(bestCrop)} keeps ~${fmt(best.relativeYield, 0)}% of its yield potential, against ~${fmt(currentOption?.relativeYield, 0)}% for ${current.name.toLowerCase()}.`
-      : `ECe ${fmt(f.ece)} dS/m keeps ${tol(bestCrop)} at ~${fmt(best.relativeYield, 0)}% of its yield potential${marketContrast(best.crop, farm.main_crop)}.`;
+      ? `${bestCrop.name} reaches about ${fmt(best.relativeYield, 0)}% of its full yield at ${fmt(f.ece)} dS/m, against about ${fmt(currentOption?.relativeYield, 0)}% for ${cn}.`
+      : (marketContrast(best.crop, farm.main_crop) ?? `${bestCrop.name} copes slightly better with ${fmt(f.ece)} dS/m than ${cn}.`);
   return { crop: bestCrop.name, reason, market_note: bestCrop.market.note };
 }
 
-/** Insight for one farm, as of `index` into the dashboard date axis. */
-export function generateInsight(bundle: FarmBundle, index: number, createdAt: string): AiInsight | null {
+const NO_SECTIONS: ReportSections = { insights: [], warnings: [], forecast: null, economics: null, harvest: null };
+
+/**
+ * Insight for one farm, as of `index` into the dashboard date axis. `sections: false` skips the
+ * report sections (Insights, Warnings, Forecast, Economics, Harvest) when only the risk score is needed.
+ */
+export function generateInsight(bundle: FarmBundle, index: number, createdAt: string, options: { sections?: boolean } = {}): AiInsight | null {
   const f = gatherFacts(bundle, index);
   if (!f) return null;
   const { score } = scoreRisk(f);
@@ -271,15 +285,17 @@ export function generateInsight(bundle: FarmBundle, index: number, createdAt: st
   if (parts.length === 0) {
     const d = f.day;
     parts.push(
-      `All ${d.sensors.length} probes are in range: ECe ${fmt(d.ece)} dS/m (${salinityLabel(d.salinityClass)}), root zone at ${fmt(d.deficitPct, 0)}% of readily available water, crop water use ${fmt(d.etc)} mm/day.`,
+      d.ece != null
+        ? `${d.sensors.length === 1 ? "The probe is" : `All ${d.sensors.length} probes are`} in range: salt ${fmt(d.ece)} dS/m (${salinityLabel(d.salinityClass)}), enough water in the root zone, crop water use ${fmt(d.etc)} mm a day.`
+        : `${d.sensors.length === 1 ? "The probe is" : `All ${d.sensors.length} probes are`} in range: enough water in the root zone, crop water use ${fmt(d.etc)} mm a day.`,
     );
   }
   const hotspot = isStressed(f.day) ? f.driest : isLossy(f.day) ? f.saltiest : null;
   if (hotspot && hotspot.location !== "centre") {
     parts.push(
       isStressed(f.day)
-        ? `Driest spot: ${hotspot.sensor.id} in the ${hotspot.location} at ${fmt(hotspot.sensor.moisture)}% VWC.`
-        : `Worst spot: ${hotspot.sensor.id} in the ${hotspot.location} at ${fmt(hotspot.value)} dS/m.`,
+        ? `Driest spot: ${hotspot.sensor.id} in the ${hotspot.location}, at ${fmt(hotspot.sensor.moisture)}% moisture.`
+        : `Saltiest spot: ${hotspot.sensor.id} in the ${hotspot.location}, at ${fmt(hotspot.value)} dS/m.`,
     );
   }
   return {
@@ -291,7 +307,46 @@ export function generateInsight(bundle: FarmBundle, index: number, createdAt: st
     summary: parts.join(" "),
     recommendations: buildRecommendations(f),
     crop_suggestion: buildCropSuggestion(f),
+    ...(options.sections === false ? NO_SECTIONS : buildReportSections(bundle, index, f.day, buildFarmFacts(bundle, f.day))),
   };
+}
+
+/**
+ * Stored insights written before migration 0003 (or by a model that skips the sections) have no
+ * report sections; fill them from the rules so every farm shows Warnings, Forecast, Economics and
+ * Harvest. Sections the row already has are kept.
+ */
+export function withReportSections(bundle: FarmBundle): AiInsight | null {
+  const insight = bundle.insight;
+  if (!insight) return null;
+  const complete = insight.insights.length > 0 && insight.forecast && insight.economics && insight.harvest;
+  if (complete) return insight;
+  const index = lastDataIndex(bundle);
+  const day = dayAt(bundle, index);
+  if (!day) return insight;
+  const rules = buildReportSections(bundle, index, day, buildFarmFacts(bundle, day));
+  return {
+    ...insight,
+    insights: insight.insights.length ? insight.insights : rules.insights,
+    warnings: insight.warnings.length ? insight.warnings : rules.warnings,
+    forecast: insight.forecast ?? rules.forecast,
+    economics: insight.economics ?? rules.economics,
+    harvest: insight.harvest ?? rules.harvest,
+  };
+}
+
+/**
+ * Risk over the last `days` days when there is no stored insight history (demo data, real accounts):
+ * the insight rules replayed for each day that has readings.
+ */
+export function replayRiskHistory(bundle: FarmBundle, dates: string[], days = 30): RiskPoint[] {
+  const out: RiskPoint[] = [];
+  for (let i = Math.max(0, dates.length - days); i < dates.length; i++) {
+    if (!bundle.days[i]) continue;
+    const insight = generateInsight(bundle, i, `${dates[i]}T09:00:00Z`, { sections: false });
+    if (insight) out.push({ date: dates[i], score: Math.round(insight.risk_score) });
+  }
+  return out;
 }
 
 /** Latest insight for every farm in the dataset. */

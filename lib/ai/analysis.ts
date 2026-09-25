@@ -6,7 +6,7 @@
  */
 import { relativeYield_pct } from "../agronomy";
 import { CROPS, type CropId, type MarketStatus } from "../agronomy-tables";
-import { localProjector, polygonCentroid } from "../geo";
+import { compassDirection, localProjector, polygonCentroid } from "../geo";
 import type { FarmBundle, FarmDay, SensorDay } from "../types";
 
 export const VEGETABLE_CROPS: CropId[] = ["tomato", "cucumber", "sweet_pepper", "eggplant", "zucchini"];
@@ -70,13 +70,6 @@ export function windowMean(bundle: FarmBundle, index: number, windowDays: number
     }
   }
   return n > 0 ? sum / n : null;
-}
-
-const COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
-
-export function compassDirection(bearingDeg: number): string {
-  const i = Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8;
-  return COMPASS[i];
 }
 
 /** Where a probe sits in the field, e.g. "north-east" or "centre". */

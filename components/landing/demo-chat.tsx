@@ -33,7 +33,7 @@ export function DemoChat({ farmName, answers }: { farmName: string; answers: Sho
       footer={
         <Link
           href="/dashboard"
-          className="mt-2.5 inline-flex items-center gap-1 self-start rounded-md text-[13px] font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+          className="mt-2.5 inline-flex items-center gap-1 self-start rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
         >
           Ask your own questions in the dashboard <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </Link>

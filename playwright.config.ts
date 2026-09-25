@@ -24,7 +24,8 @@ export default defineConfig({
     },
     {
       name: "mobile",
-      testMatch: /mobile\.spec\.ts/,
+      // Phone checks, plus the clutter budget measured on a phone.
+      testMatch: /(mobile|ui-budget)\.spec\.ts/,
       use: { ...devices["iPhone 13"], browserName: "chromium" },
     },
   ],

@@ -1,5 +1,6 @@
 import { AlertTriangle, CircleAlert, CircleCheck } from "lucide-react";
 import type { RiskLevel } from "@/lib/ai/contract";
+import type { HealthTone } from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 
 const STYLE: Record<RiskLevel, { label: string; className: string; Icon: typeof AlertTriangle }> = {
@@ -16,6 +17,22 @@ export const RISK_BAR: Record<RiskLevel, string> = {
 
 export function riskLabel(level: RiskLevel): string {
   return STYLE[level].label;
+}
+
+const TONE_DOT: Record<HealthTone, string> = {
+  bad: "bg-risk-high",
+  warn: "bg-risk-medium",
+  ok: "bg-risk-low",
+  none: "bg-muted-foreground/40",
+};
+
+export const RISK_TONE: Record<RiskLevel, HealthTone> = { high: "bad", medium: "warn", low: "ok" };
+
+/** A small health dot. Colour is never the only cue: pass `label` for screen readers (or show the words next to it). */
+export function HealthDot({ tone, label, className }: { tone: HealthTone; label?: string; className?: string }) {
+  return (
+    <span className={cn("inline-flex size-2.5 shrink-0 rounded-full ring-2 ring-card", TONE_DOT[tone], className)} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} />
+  );
 }
 
 /** Risk chip — icon + text + score, never colour alone. */
@@ -36,7 +53,7 @@ export function RiskBadge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full font-semibold whitespace-nowrap ring-1 ring-inset",
-        compact ? "h-5.5 px-1.5 text-[11.5px]" : "h-6 px-2.5 text-xs",
+        compact ? "h-6 px-2 text-xs" : "h-7 px-2.5 text-xs",
         s.className,
         className,
       )}

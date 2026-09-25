@@ -77,7 +77,7 @@ export function Timeline({
         type="button"
         variant="outline"
         size="icon"
-        className="size-9 shrink-0 rounded-full border-primary/30 bg-card text-primary hover:bg-accent"
+        className="size-9 shrink-0 rounded-full border-primary/30 bg-card text-primary hover:bg-accent pointer-coarse:size-11"
         onClick={togglePlay}
         aria-label={playing ? "Pause playback" : "Play the timeline"}
         aria-pressed={playing}
@@ -111,7 +111,7 @@ export function Timeline({
             thumbValueText={[formatDay(dates[dateIndex])]}
           />
         )}
-        <div className="relative mt-2 h-4 text-[11px] text-muted-foreground tabular" aria-hidden="true">
+        <div className="relative mt-2 h-4 text-xs text-muted-foreground tabular" aria-hidden="true">
           {tickIndices(dates.length).map((i, k, all) => (
             <span
               key={i}

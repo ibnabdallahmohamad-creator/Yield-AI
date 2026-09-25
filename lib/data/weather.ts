@@ -1,7 +1,8 @@
 /**
  * Daily weather from Open-Meteo (free, no API key) for every farm in one request:
  * wind speed at 10 m and shortwave radiation for Penman–Monteith, air temperature / humidity
- * as a fallback when a probe has no air sensor, and Open-Meteo's own FAO ET0 as a cross-check.
+ * as a fallback when a probe has no air sensor, Open-Meteo's own FAO ET0 as a cross-check, and
+ * air temperature and rain (past days plus a 7-day forecast) for the weather charts.
  *
  * Responses are cached in memory for an hour; on failure we serve the last good response or
  * report "unavailable" so ET0 falls back to Hargreaves. Never throws.
@@ -13,12 +14,17 @@ const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
 const DAILY_VARS = [
   "temperature_2m_max",
   "temperature_2m_min",
+  "temperature_2m_mean",
+  "precipitation_sum",
+  "precipitation_probability_max",
   "relative_humidity_2m_max",
   "relative_humidity_2m_min",
   "wind_speed_10m_mean",
   "shortwave_radiation_sum",
   "et0_fao_evapotranspiration",
 ].join(",");
+/** Forecast days after today, for the weather charts. ET₀ and the water balance only use past days and today. */
+export const FORECAST_DAYS = 7;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const TIMEOUT_MS = 8000;
 
@@ -32,6 +38,9 @@ interface OpenMeteoDaily {
   time: string[];
   temperature_2m_max: Array<number | null>;
   temperature_2m_min: Array<number | null>;
+  temperature_2m_mean?: Array<number | null>;
+  precipitation_sum?: Array<number | null>;
+  precipitation_probability_max?: Array<number | null>;
   relative_humidity_2m_max: Array<number | null>;
   relative_humidity_2m_min: Array<number | null>;
   wind_speed_10m_mean: Array<number | null>;
@@ -48,6 +57,9 @@ function parseLocation(daily: OpenMeteoDaily): Record<string, WeatherDay> {
       date,
       tmax: daily.temperature_2m_max?.[i] ?? null,
       tmin: daily.temperature_2m_min?.[i] ?? null,
+      tmean: daily.temperature_2m_mean?.[i] ?? null,
+      precip: daily.precipitation_sum?.[i] ?? null,
+      precipProb: daily.precipitation_probability_max?.[i] ?? null,
       rhMax: daily.relative_humidity_2m_max?.[i] ?? null,
       rhMin: daily.relative_humidity_2m_min?.[i] ?? null,
       wind10: daily.wind_speed_10m_mean?.[i] ?? null,
@@ -72,7 +84,7 @@ export async function getWeatherForFarms(farms: Pick<Farm, "id" | "lat" | "lng">
     longitude: farms.map((f) => f.lng.toFixed(4)).join(","),
     daily: DAILY_VARS,
     past_days: String(Math.min(92, Math.max(1, pastDays))),
-    forecast_days: "1",
+    forecast_days: String(FORECAST_DAYS + 1),
     timezone: QATAR_TIMEZONE,
     wind_speed_unit: "ms",
   });

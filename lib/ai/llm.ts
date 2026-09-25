@@ -6,18 +6,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../env";
 import type { ChatContext, ChatTurn } from "./contract";
-
-/** The system prompt from the product brief, followed by formatting rules and the farm context. */
-export const AGRONOMIST_SYSTEM_PROMPT =
-  "You are an agronomist assistant for farms in Qatar. Be concise and practical. Reference the farm's actual readings.";
-
-const FORMAT_RULES = [
-  "Answer in at most about 150 words unless the user asks for more detail.",
-  "Quote numbers with their units and say which probe or method they come from when it matters.",
-  "Use short paragraphs, **bold** for the key figure, and a numbered list for actions.",
-  "Use only the data in the farm context below. If something is not in it, say you don't have that reading.",
-  "The derived values follow FAO-56 (evapotranspiration, water balance) and FAO-29 (salinity, leaching); ECe is estimated from probe bulk EC.",
-].join("\n");
+import { AGRONOMIST_SYSTEM_PROMPT, ANSWER_FORMAT } from "./prompts";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic | null {
@@ -40,7 +29,7 @@ export async function askLlm(question: string, context: ChatContext, history: Ch
   if (!anthropic) return null;
 
   const messages: Anthropic.Beta.BetaMessageParam[] = [
-    ...history.slice(-8).map((turn) => ({ role: turn.role, content: turn.content })),
+    ...history.slice(-12).map((turn) => ({ role: turn.role, content: turn.content })),
     { role: "user", content: question },
   ];
   // The API requires the first message to be from the user.
@@ -56,7 +45,7 @@ export async function askLlm(question: string, context: ChatContext, history: Ch
     fallbacks: "default",
     cache_control: { type: "ephemeral" },
     system: [
-      { type: "text", text: `${AGRONOMIST_SYSTEM_PROMPT}\n\n${FORMAT_RULES}` },
+      { type: "text", text: `${AGRONOMIST_SYSTEM_PROMPT}\n\n${ANSWER_FORMAT}` },
       { type: "text", text: `Farm context (JSON):\n${JSON.stringify(context)}` },
     ],
     messages,

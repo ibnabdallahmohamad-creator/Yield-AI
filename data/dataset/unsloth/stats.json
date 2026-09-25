@@ -1,0 +1,78 @@
+{
+  "generated": "2026-09-25T04:03:00.331Z",
+  "seed": 7,
+  "sites": 29,
+  "examples": {
+    "land_analysis": 1500,
+    "farm_analysis": 1500
+  },
+  "skipped": {
+    "no_weather": 0,
+    "failed_checks": 0
+  },
+  "failures": [],
+  "by": {
+    "task": {
+      "farm_analysis": 1500,
+      "land_analysis": 1500
+    },
+    "focus": {
+      "overall": 1301,
+      "risk": 96,
+      "economics": 153,
+      "farm type": 400,
+      "next crop": 137,
+      "market": 145,
+      "irrigation": 388,
+      "risks": 273,
+      "budget": 107
+    },
+    "crop": {
+      "tomato": 349,
+      "alfalfa": 237,
+      "zucchini": 227,
+      "cucumber": 290,
+      "sweet_pepper": 199,
+      "eggplant": 198
+    },
+    "system": {
+      "net house": 334,
+      "open field": 444,
+      "cooled greenhouse": 722
+    },
+    "water": {
+      "groundwater": 1764,
+      "desalinated": 846,
+      "tse": 390
+    },
+    "top_land_use": {
+      "Table eggs (laying hens)": 327,
+      "Zucchini, eggplant, tomato and melons": 111,
+      "Sheep and goats (Awassi, Naimi, Najdi)": 424,
+      "Tilapia or marine fish": 99,
+      "Lettuce, leafy greens and herbs": 365,
+      "Alfalfa or Rhodes grass": 139,
+      "Tomato, cucumber and sweet pepper": 15,
+      "Date palm (Khalas, Barhi, Sukkari)": 20
+    },
+    "interest": {
+      "any": 808,
+      "crops": 463,
+      "aquaculture": 122,
+      "livestock": 107
+    }
+  },
+  "warnings": {
+    "critical": 300,
+    "warning": 2671,
+    "watch": 3843
+  },
+  "chars": {
+    "user_mean": 12564,
+    "user_max": 17499,
+    "assistant_mean": 6546,
+    "assistant_max": 9608
+  },
+  "file": "yield-ai-qatar.jsonl",
+  "rows": 3000
+}

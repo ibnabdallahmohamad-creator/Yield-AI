@@ -111,19 +111,30 @@ function fail(what: string, error: { message: string } | null): never {
   throw new Error(`${what}: ${error?.message ?? "unknown error"}`);
 }
 
-export async function fetchFarms(client: SupabaseClient): Promise<Farm[]> {
-  const { data, error } = await client.from("farms").select("*").order("name");
+/** Postgres "undefined_column": the database predates migration 0004 (no farms.owner_id yet). */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * The shared demo farms (seeded by `npm run seed`, no owner). Real accounts' farms are never
+ * included: they are read through lib/account/supabase-store.ts, scoped to their owner.
+ */
+export async function fetchDemoFarms(client: SupabaseClient): Promise<Farm[]> {
+  let { data, error } = await client.from("farms").select("*").is("owner_id", null).order("name");
+  // Before migration 0004 there are no owners: every farm is a demo farm.
+  if (error?.code === UNDEFINED_COLUMN) ({ data, error } = await client.from("farms").select("*").order("name"));
   if (error) fail("farms", error);
   return (data ?? []).map(parseFarmRow).filter((f): f is Farm => f !== null);
 }
 
 /** Daily per-probe aggregates from the `sensor_daily` view, paged past PostgREST's row limit. */
-export async function fetchDaily(client: SupabaseClient, fromDay: string): Promise<SensorDaily[]> {
+export async function fetchDaily(client: SupabaseClient, fromDay: string, farmIds: string[]): Promise<SensorDaily[]> {
   const rows: SensorDaily[] = [];
+  if (farmIds.length === 0) return rows;
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await client
       .from("sensor_daily")
       .select("*")
+      .in("farm_id", farmIds)
       .gte("day", fromDay)
       .order("day")
       .order("farm_id")
@@ -136,16 +147,24 @@ export async function fetchDaily(client: SupabaseClient, fromDay: string): Promi
   return rows;
 }
 
-export async function fetchInsights(client: SupabaseClient): Promise<AiInsight[]> {
-  const { data, error } = await client.from("ai_insights").select("*").order("created_at", { ascending: false }).limit(500);
+export async function fetchInsights(client: SupabaseClient, farmIds: string[]): Promise<AiInsight[]> {
+  if (farmIds.length === 0) return [];
+  const { data, error } = await client
+    .from("ai_insights")
+    .select("*")
+    .in("farm_id", farmIds)
+    .order("created_at", { ascending: false })
+    .limit(500);
   if (error) fail("ai_insights", error);
   return (data ?? []).map(parseInsight).filter((i): i is AiInsight => i !== null);
 }
 
-export async function fetchReadingsSince(client: SupabaseClient, afterId: number, limit = 500) {
+export async function fetchReadingsSince(client: SupabaseClient, afterId: number, farmIds: string[], limit = 500) {
+  if (farmIds.length === 0) return [];
   const { data, error } = await client
     .from("sensor_readings")
     .select("*")
+    .in("farm_id", farmIds)
     .gt("id", afterId)
     .order("id", { ascending: true })
     .limit(limit);
@@ -153,10 +172,12 @@ export async function fetchReadingsSince(client: SupabaseClient, afterId: number
   return (data ?? []).map((r) => toReading(r as Record<string, unknown>));
 }
 
-export async function fetchLatestReading(client: SupabaseClient) {
+export async function fetchLatestReading(client: SupabaseClient, farmIds: string[]) {
+  if (farmIds.length === 0) return null;
   const { data, error } = await client
     .from("sensor_readings")
     .select("id, timestamp")
+    .in("farm_id", farmIds)
     .order("id", { ascending: false })
     .limit(1);
   if (error) fail("sensor_readings", error);
@@ -185,7 +206,7 @@ export async function insertReadings(client: SupabaseClient, readings: SensorRea
     const chunk = readings.slice(i, i + PAGE_SIZE);
     const { error, count } = await client
       .from("sensor_readings")
-      .upsert(chunk, { onConflict: "sensor_id,timestamp", ignoreDuplicates: true, count: "exact" });
+      .upsert(chunk, { onConflict: "farm_id,sensor_id,timestamp", ignoreDuplicates: true, count: "exact" });
     if (error) fail("insert sensor_readings", error);
     inserted += count ?? chunk.length;
   }

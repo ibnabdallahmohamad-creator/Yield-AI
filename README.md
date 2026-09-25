@@ -27,18 +27,29 @@ never breaks.
     period or another farm.
   - An AI panel with the risk, a summary, prioritised actions and a crop suggestion with a market
     note, plus a chat grounded in the farm's readings.
-  - **Live mode** polls every 5 s and pulses the farm that just reported.
+  - **Next 12 hours** — hourly temperature, humidity, rain (amount and chance), wind with its
+    direction and gusts, downloaded again every 12 hours (00:00 and 12:00 Qatar time).
+  - **Live mode** checks for new readings at the account's reading interval (every **10 s** by
+    default; 5 s to 15 min, set under the status dot → *Update every*) and pulses the farm that just
+    reported.
 - **Farm details (`/dashboard/farm/[id]`)**
-  - A field map and KPIs.
+  - A field map, KPIs and the 12-hour forecast.
   - Trend charts for all 11 layers, each over 30 or 60 days.
-  - A per-probe table for the selected day.
+  - **Probes** — a per-probe table for the selected day, and **every reading** the devices sent
+    (`?tab=readings` opens it), from the last hour to all time: moisture, soil temperature, EC, pH,
+    N, P, K, air temperature and humidity. Farm mean with the probe range, or one line per probe;
+    drag across the chart (or use the zoom buttons) to zoom in; min / mean / max per point in the
+    tooltip; latest, average, lowest, highest and change; a table view and a CSV download.
   - Every agronomy input (Kc, root depth, TAW/RAW, salt tolerance, leaching requirement…) with its
     source.
+- **Farms & devices (`/dashboard/devices`)** — add farms (click the satellite map, type coordinates or
+  use the phone's GPS), connect ESP32 probes with a pairing code, and see each device's status,
+  signal, last reading and reading interval.
 - **Accounts** — every user signs in. Supabase Auth is used when configured; otherwise local accounts
   are stored in `.data/`. A **Try the demo account** button signs in with one click.
 
-The landing page only ever shows the built-in demo dataset. Real farm data is visible only to
-signed-in users.
+The landing page and the demo account show the built-in demo dataset. **A new account starts empty —
+no demo data**: its dashboard shows only the farms it adds and the readings its own ESP32 devices send.
 
 ## Quick start
 
@@ -59,6 +70,7 @@ are needed for the demo.
 | `npm run test:e2e` | End-to-end tests (Playwright): landing widgets, sign-in, dashboard, farm details, phone layout |
 | `npm run lint` / `npm run typecheck` | ESLint and TypeScript |
 | `npm run seed` | Load the demo farms, 60 days of readings and insights into Supabase |
+| `npm run device:sim -- --code ABCD-EFGH` | A simulated ESP32: pairs with a code from *Farms & devices* and sends readings at the dashboard's interval (`--backfill 6h` uploads history first; `--token yd_…` reuses a paired device) |
 | `npm run data:summary` · `insights:preview` · `chat:preview` | Print the demo scenarios, seed insights and offline chat answers in the terminal |
 
 The first `npm run test:e2e` may need `npx playwright install chromium`. The tests start the dev
@@ -80,12 +92,14 @@ Copy `.env.example` to `.env.local`. Every variable is optional.
 | `ANTHROPIC_MODEL` | LLM model, default `claude-opus-5`. |
 | `AUTH_SECRET` | Signs local-account session cookies. **Set it in production** (`openssl rand -base64 32`). Without it, a key derived from `SUPABASE_SERVICE_ROLE_KEY` is used, and failing that a development default. |
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | Credentials behind "Try the demo account" (defaults: `demo@yield-ai.app` / `harvest-demo-2026`). |
-| `INGEST_API_KEY` | Enables `POST /api/readings` for the probes. |
-| `LIVE_SIMULATION` | Live-mode feed: `auto` (default) simulates readings when no real ones arrive; `on` or `off`. |
-| `OPEN_METEO_DISABLED` | `true` skips Open-Meteo. ET₀ is then estimated with Hargreaves. |
+| `INGEST_API_KEY` | A shared key for sending readings to the **demo farms** with `POST /api/readings`. Not needed for accounts' ESP32 devices, which get their own token when they pair. |
+| `LIVE_SIMULATION` | Demo account's live feed: `auto` (default) simulates readings when no real ones arrive; `on` or `off`. Real accounts only ever see their devices' readings. |
+| `OPEN_METEO_DISABLED` | `true` skips Open-Meteo. ET₀ is then estimated with Hargreaves and there is no 12-hour forecast. |
+| `CRON_SECRET` | Enables `GET /api/cron/weather` (the 12-hour forecast refresh) for hosts that run scheduled jobs. |
+| `YIELD_DATA_DIR` | Where local accounts, their farms, devices and readings, saved chats and the forecast cache are stored (default `.data/`). |
 
-Check what is active at `GET /api/health`, which reports the data source, auth, chat chain, ingest
-and live mode.
+Check what is active at `GET /api/health`, which reports the data source, auth, chat chain, ingest,
+live mode and the 12-hour forecast.
 
 ## Supabase setup
 
@@ -94,6 +108,15 @@ and live mode.
    - the tables `farms`, `sensor_readings` and `ai_insights`;
    - a `sensor_daily` view (daily means per probe, Asia/Qatar days);
    - row-level security (only signed-in users can read).
+
+   Then apply, in order:
+   - `0002_conversations.sql` — saved chats (`conversations` and `messages`, private to each user
+     through row-level security);
+   - `0003_insight_sections.sql` — the report sections of `ai_insights`;
+   - `0004_accounts_devices.sql` — accounts' own farms (`farms.owner_id`), the `devices` table (ESP32
+     probes: pairing codes, hashed tokens, interval, last seen) and `reading_series()`, which buckets
+     readings in the database for the Readings chart. Each account sees only its own farms, devices
+     and readings; the seeded demo farms (no owner) are shown to the demo account only.
 2. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 3. Run `npm run seed`. It loads:
    - 8 farms in northern Qatar;
@@ -190,13 +213,124 @@ tried in this order, stopping at the first one that responds:
    context and the system prompt *"You are an agronomist assistant for farms in Qatar. Be concise and
    practical. Reference the farm's actual readings."*
 3. **Offline engine** — [`lib/ai/offline.ts`](lib/ai/offline.ts) answers from the context alone.
-   Topics: salinity, irrigation, crop choice, pH, nutrients, temperature, ET, yield and hotspots. The
-   chat therefore always answers with the farm's real numbers.
+   Topics: salinity, irrigation, crop choice, pH, nutrients, temperature, ET, yield, hotspots, the
+   next 12 hours and the week's weather, costs, harvest and the farm's location. The chat therefore
+   always answers with the farm's real numbers.
 
-## Probe ingest — `POST /api/readings`
+`context.weather_next_12h` carries the hourly forecast (temperature, humidity, rain, wind and gusts
+with direction) so every answerer can talk about the next hours.
 
-Send one reading, an array, or `{ "readings": [...] }` (up to 1000), with
-`Authorization: Bearer $INGEST_API_KEY` or an `x-api-key` header:
+**Answers are split into sections by the website, with no AI involved**
+([`lib/ai/sections.ts`](lib/ai/sections.ts)). Whatever the answer looks like, the chat shows a lead
+line and titled sections (Warnings, Do now, Next 12 hours, Recommendations, Sources…), with priority
+badges, numbered steps and collapsible sources:
+
+- the fine-tuned model's JSON (`summary`, `insights`, `warnings`, `forecast`, `economic_advice`,
+  `recommendations`, `crop_plan`, `sources`, `data_gaps`) — also inside a ```` ```json ```` fence,
+  surrounded by text, double-encoded, with trailing commas, or cut off mid-answer;
+- the report JSON (`contract.ts` `FarmReport`), or any other JSON object (one section per key);
+- Markdown or plain text: `### Heading` lines, whole-line **bold** labels or `Warnings:`-style labels
+  start sections.
+
+Copying an answer gives clean Markdown, and the chat history previews its first line.
+
+### Saved chats — `/api/conversations`
+
+`POST /api/chat` also takes optional `conversation_id` (append to a saved chat; the server loads the
+last 12 turns itself and ignores `history`), `new_conversation: true` (start one, titled after the
+question), `insight_id` (stored on the question) and `regenerate: true` (with `conversation_id`:
+answer the last question again, replacing the reply). The response then adds `conversation_id`,
+`conversation`, `user_message` and `message`. Without those fields the chat stays stateless and
+`conversation_id` is `null`. If saving fails, the answer is still returned.
+
+| Endpoint | Body | Returns |
+| --- | --- | --- |
+| `GET /api/conversations?farm=&q=` | — | `{ conversations }`, newest first, at most 200. `q` searches titles and messages |
+| `POST /api/conversations` | `{ farm_id, title? }` | `201 { conversation }` |
+| `GET /api/conversations/[id]` | — | `{ conversation, messages }`, oldest message first |
+| `PATCH /api/conversations/[id]` | `{ title?, pinned?, farm_id? }` | `{ conversation }` |
+| `DELETE /api/conversations/[id]` | — | `{ ok: true }` |
+| `PATCH /api/conversations/[id]/messages/[messageId]` | `{ feedback: "up" \| "down" \| null }` | `{ message }` |
+
+All of them need a signed-in session (401 otherwise) and answer `{ error }` with 400 (bad body), 404
+(not yours or deleted) or 503 (storage unreachable). The shapes are in section 7 of `contract.ts`, and
+[`lib/chat/client.ts`](lib/chat/client.ts) has typed fetch helpers for the browser. Supabase users
+are stored in the `0002_conversations.sql` tables. Local accounts use one JSON file per user in
+`.data/conversations/` (memory only on read-only hosts). The shared demo account gets a separate
+history per sign-in, and those files are deleted after 7 days.
+
+## ESP32 devices
+
+Each account connects its own ESP32 probes over Wi-Fi. No keys to copy by hand:
+
+1. **Farms & devices → Add farm**, then **Connect ESP32**. Pick the farm, name the device and choose
+   how often it sends a reading (10 s by default). The dashboard shows an 8-character **pairing code**
+   (valid 30 minutes) and the server address to use.
+2. **Flash the firmware** in [`firmware/esp32/yield-ai-probe`](firmware/esp32/yield-ai-probe) (see its
+   README). On first boot the ESP32 opens a Wi-Fi hotspot, `YieldAI-Setup-XXXX`. Join it with a phone:
+   the setup page lists nearby networks. Enter your Wi-Fi, the server address and the pairing code.
+3. The device pairs, receives its own token, and starts sending readings. The dashboard follows along:
+   *Waiting for the device → Paired → Receiving readings*.
+
+No hardware yet? `npm run device:sim -- --code ABCD-EFGH` is a simulated ESP32 that speaks the same
+protocol. On `localhost`, the connect dialog shows the computer's LAN address, which a real device on
+the same Wi-Fi can reach.
+
+**Reading interval.** Each device sends a reading every `interval_s` seconds (5 s to 1 hour; 10 s by
+default). Change it per device on *Farms & devices*, or for every device at once under the status dot
+→ *Update every*. The device learns the new value from its next ingest reply, and the dashboard checks
+for new readings at the same pace.
+
+### Protocol
+
+| Step | Request | Reply |
+| --- | --- | --- |
+| Pair | `POST /api/device/pair` `{ "code": "ABCD-EFGH", "firmware"?, "mac"?, "ip"?, "rssi"? }` (no auth) | `200 { token: "yd_…", interval_s, ingest_url, farm_id, sensor_id, name }` · `404` code invalid or expired · `429` too many attempts |
+| Send | `POST /api/readings` with `Authorization: Bearer yd_…` | `201 { stored, interval_s, server_time, warnings?, rejected? }` |
+
+The body is one reading, an array, or `{ "readings": [...], "rssi"?, "firmware"?, "ip"? }` (at most
+500 readings, e.g. a buffer saved while Wi-Fi was down). No farm or probe ids: the token says which
+device it is.
+
+```json
+{ "timestamp": 1790313600, "moisture": 21.4, "temperature": 27.9, "ec_us_cm": 1850, "ph": 7.8,
+  "n": 38, "p": 21, "k": 175, "air_temp": 36.2, "air_humidity": 31 }
+```
+
+- Every measurement is optional, but send at least one. Units as in the table below; common sketch
+  names are also accepted (`soil_moisture`, `soil_temp`, `nitrogen`, `humidity`…).
+- `timestamp` is Unix seconds (or ms) or ISO 8601 with an offset. Without a clock, send `age_s`
+  (seconds since the reading was taken) or nothing (now). A timestamp before 2024 (a clock that was
+  never set) or in the future is replaced by the time received, with a warning; readings older than
+  30 days are refused.
+- Errors: `401` unknown token (pair again), `422` invalid readings (`details` says which; drop them),
+  `429` more than 30 requests a minute (wait `retry_after_s`), `503` storage unavailable (keep the
+  buffer and retry). Every reply includes `interval_s`.
+
+Charts read the readings back with `GET /api/readings/series?farm=<id>&range=1h|6h|24h|7d|30d|90d|all`
+(or `&from=<ISO>&to=<ISO>`), bucketed with mean, min, max and count per metric, farm-wide and per
+probe, so they stay fast however often the devices report.
+
+## Weather
+
+- **Daily weather** (past 60 days and a 7-day forecast) from Open-Meteo drives FAO-56 ET₀ and the
+  week's outlook.
+- **The next 12 hours**, hour by hour: temperature, humidity, dew point, rain (mm and chance), wind
+  speed, gusts and direction, weather code. The forecast is downloaded every 12 hours on a fixed
+  schedule, **00:00 and 12:00 Qatar time**, for the next 36 hours. Between downloads the app shows the
+  12 hours from the current hour. Downloads are cached in memory and in
+  `.data/weather/forecast.json`, and a failed download keeps the previous forecast (marked stale) and
+  retries every 10 minutes.
+- Refresh triggers: on a long-running server (`next start`, `next dev`), `instrumentation.ts` runs
+  the refresh at each 00:00 and 12:00. Serverless hosts refresh on the first request in each half-day,
+  or from a scheduled `GET /api/cron/weather` with `Authorization: Bearer $CRON_SECRET` (cron
+  `0 9,21 * * *` UTC).
+
+## Probe ingest for the demo farms — `POST /api/readings`
+
+The hardware team can also send readings to the **demo farms** with a shared key. Send one reading,
+an array, or `{ "readings": [...] }` (up to 1000), with `Authorization: Bearer $INGEST_API_KEY` or an
+`x-api-key` header:
 
 ```bash
 curl -X POST http://localhost:3000/api/readings \
@@ -218,7 +352,7 @@ Units and defaults:
 | `timestamp` | Defaults to now |
 | `lat`, `lng` | Default to the probe's known position |
 
-Readings go to Supabase, or to the in-memory demo store in mock mode. Live mode shows them within 5 s.
+Readings go to Supabase, or to the in-memory demo store in mock mode. Live mode shows them at its next check (every 10 s by default).
 
 ## The science
 
@@ -261,14 +395,25 @@ signals set in `lib/agronomy-tables.ts`. Replace them with your own market data.
 ## Project layout
 
 ```text
-app/                    routes: landing, (auth) login/signup, dashboard, dashboard/farm/[id], api/*
-components/dashboard/   map (Leaflet + IDW raster), charts (Recharts), AI panel, chat, timeline
+app/                    routes: landing, (auth) login/signup, dashboard (overview, insights, farm/[id],
+                        land, assistant, devices), api/*
+components/dashboard/   map (Leaflet + IDW raster), charts (Recharts), timeline
+components/charts/      soil & weather charts, the next-12-hours forecast card
+components/farm/        farm details: readings explorer, probes, method
+components/devices/     farms & devices: add farm, connect ESP32 (pairing), device list
+components/assistant/   the chat, including the section renderer for answers
 components/landing/     the three landing-page demo widgets (built on the dashboard components)
 lib/agronomy*.ts        FAO-56 / FAO-29 formulas and cited tables
-lib/ai/                 contract.ts (all AI formats), chat context, AI-service / LLM / offline answers
-lib/data/               demo data generator, Supabase source, daily aggregation, insights, live mode
+lib/account/            accounts' farms and devices: pairing, device ingest, local and Supabase stores
+lib/readings/           bucketing readings into chart series
+lib/ai/                 contract.ts (all AI formats), chat context, AI-service / LLM / offline answers,
+                        sections.ts (splits any answer into sections without AI)
+lib/chat/               saved chats: Supabase and local-file stores, browser API client
+lib/data/               demo data generator, Supabase source, daily aggregation, insights, live mode,
+                        weather and the 12-hour forecast
+firmware/esp32/         the ESP32 probe sketch (Wi-Fi setup page, pairing, offline buffer)
 supabase/migrations/    database schema and row-level security
-scripts/                seed and preview scripts
+scripts/                seed, preview and ESP32 simulator scripts
 e2e/                    Playwright tests
 ```
 

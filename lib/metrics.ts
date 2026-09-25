@@ -64,7 +64,7 @@ export const METRICS: Record<MetricKey, MetricDef> = {
   ece: {
     key: "ece",
     label: "Salinity (ECe)",
-    short: "ECe",
+    short: "Salinity",
     unit: "dS/m",
     decimals: 1,
     group: "probe",
@@ -157,7 +157,7 @@ export const METRICS: Record<MetricKey, MetricDef> = {
   n: {
     key: "n",
     label: "Nitrogen (N)",
-    short: "N",
+    short: "Nitrogen",
     unit: "mg/kg",
     decimals: 0,
     group: "probe",
@@ -179,7 +179,7 @@ export const METRICS: Record<MetricKey, MetricDef> = {
   p: {
     key: "p",
     label: "Phosphorus (P)",
-    short: "P",
+    short: "Phosphorus",
     unit: "mg/kg",
     decimals: 0,
     group: "probe",
@@ -201,7 +201,7 @@ export const METRICS: Record<MetricKey, MetricDef> = {
   k: {
     key: "k",
     label: "Potassium (K)",
-    short: "K",
+    short: "Potassium",
     unit: "mg/kg",
     decimals: 0,
     group: "probe",
@@ -296,8 +296,8 @@ export const METRICS: Record<MetricKey, MetricDef> = {
   },
   yieldLoss: {
     key: "yieldLoss",
-    label: "Predicted yield loss",
-    short: "Yield loss",
+    label: "Predicted yield at risk",
+    short: "Yield at risk",
     unit: "%",
     decimals: 0,
     group: "derived",

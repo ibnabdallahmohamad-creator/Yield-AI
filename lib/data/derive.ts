@@ -25,20 +25,22 @@ import {
 import { CROPS } from "../agronomy-tables";
 import type { AiInsight } from "../ai/contract";
 import type {
+  AccountInfo,
   AirSource,
   DashboardData,
   DataSource,
   Farm,
   FarmBundle,
   FarmDay,
+  RiskPoint,
   Sensor,
   SensorDaily,
   SensorDay,
   WeatherDay,
 } from "../types";
 import { round } from "./random";
-import { daysBetween } from "./time";
-import type { WeatherResult } from "./weather";
+import { addDays, daysBetween, qatarDateString } from "./time";
+import { FORECAST_DAYS, type WeatherResult } from "./weather";
 
 /** A probe's air readings count for Tmax/Tmin only if they span most of the day. */
 const MIN_AIR_COVERAGE_H = 18;
@@ -54,6 +56,7 @@ export interface DeriveInput {
   dates?: string[];
   maxDays?: number;
   sensorsByFarm?: Record<string, Sensor[]>;
+  account?: AccountInfo | null;
 }
 
 const r = (v: number | null | undefined, d: number) => (typeof v === "number" && Number.isFinite(v) ? round(v, d) : null);
@@ -224,8 +227,9 @@ export function deriveFarmDay(
     deficitPct: dr != null && raw > 0 ? r((dr / raw) * 100, 0) : null,
     ks: dr != null ? r(waterStressCoefficient(taw, raw, dr), 2) : null,
     daysToIrrigation: days != null && Number.isFinite(days) ? r(days, 1) : null,
-    netDepth: dr != null ? r(netIrrigationDepth_mm(dr), 1) : null,
-    grossDepth: dr != null ? r(irrigationDepthWithLeaching_mm(dr, lr), 1) : null,
+    // The next irrigation: it starts when the depletion reaches RAW (or now, if it already has) and refills it.
+    netDepth: dr != null ? r(netIrrigationDepth_mm(Math.max(dr, raw)), 1) : null,
+    grossDepth: dr != null ? r(irrigationDepthWithLeaching_mm(Math.max(dr, raw), lr), 1) : null,
     eceTarget: round(eceTarget, 2),
     lr: round(lr, 3),
     yieldLoss: r(mean(sensors.map((s) => s.yieldLoss)), 1),
@@ -245,6 +249,34 @@ export function computeKcAdjusted(farm: Farm, rows: SensorDaily[], weather: Reco
   };
 }
 
+function pastWeatherOnly(weather: Record<string, WeatherDay>, lastDate: string): Record<string, WeatherDay> {
+  return Object.fromEntries(Object.entries(weather).filter(([date]) => date <= lastDate));
+}
+
+/** The farm's weather from the first chart day through the forecast, oldest first. */
+function weatherSeries(weather: Record<string, WeatherDay> | undefined, firstDate: string, lastDate: string): WeatherDay[] {
+  if (!weather || !lastDate) return [];
+  const horizon = addDays(lastDate, FORECAST_DAYS);
+  return Object.values(weather)
+    .filter((w) => w.date >= firstDate && w.date <= horizon)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** One risk score per day (the day's latest insight), from the stored insight history. */
+function riskHistoryOf(insights: AiInsight[], farmId: string, firstDate: string): RiskPoint[] {
+  const byDay = new Map<string, AiInsight>();
+  for (const ins of insights) {
+    if (ins.farm_id !== farmId) continue;
+    const day = qatarDateString(ins.created_at);
+    if (day < firstDate) continue;
+    const prev = byDay.get(day);
+    if (!prev || ins.created_at > prev.created_at) byDay.set(day, ins);
+  }
+  return Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, ins]) => ({ date, score: Math.round(ins.risk_score) }));
+}
+
 export function buildDashboardData(input: DeriveInput): DashboardData {
   const maxDays = input.maxDays ?? 60;
   const dates =
@@ -260,10 +292,13 @@ export function buildDashboardData(input: DeriveInput): DashboardData {
     byFarm.set(row.farm_id, list);
   }
 
+  const lastDate = dates[dates.length - 1] ?? "";
   const farms: FarmBundle[] = input.farms.map((farm) => {
     const rows = byFarm.get(farm.id) ?? [];
     const weather = input.weather.byFarm[farm.id];
-    const kcAdjusted = computeKcAdjusted(farm, rows, weather);
+    // Forecast days feed the weather charts only — never ET₀, Kc or the water balance.
+    const pastWeather = weather ? pastWeatherOnly(weather, lastDate) : undefined;
+    const kcAdjusted = computeKcAdjusted(farm, rows, pastWeather);
     const byDay = new Map<string, SensorDaily[]>();
     for (const row of rows) {
       const list = byDay.get(row.day) ?? [];
@@ -283,7 +318,10 @@ export function buildDashboardData(input: DeriveInput): DashboardData {
       sensors,
       kcAdjusted,
       insight: insights.get(farm.id) ?? null,
-      days: dates.map((date) => deriveFarmDay(farm, date, byDay.get(date) ?? [], weather?.[date], kcAdjusted)),
+      days: dates.map((date) => deriveFarmDay(farm, date, byDay.get(date) ?? [], pastWeather?.[date], kcAdjusted)),
+      weatherDays: weatherSeries(weather, dates[0] ?? "", lastDate),
+      riskHistory: riskHistoryOf(input.insights, farm.id, dates[0] ?? ""),
+      next12h: null,
     };
   });
 
@@ -291,6 +329,7 @@ export function buildDashboardData(input: DeriveInput): DashboardData {
     generatedAt: new Date().toISOString(),
     source: input.source,
     sourceNote: input.sourceNote,
+    account: input.account ?? null,
     weather: { source: input.weather.source, note: input.weather.note },
     dates,
     farms,

@@ -35,7 +35,7 @@ export function DemoMap({ farms }: { farms: ShowcaseFarm[] }) {
           touchDrag={false}
           padding={PADDING}
         />
-        <span className="pointer-events-none absolute top-3 left-3 z-[1000] inline-flex items-center gap-1.5 rounded-full bg-card/95 px-2.5 py-1 text-[12px] font-medium shadow-md">
+        <span className="pointer-events-none absolute top-3 left-3 z-[1000] inline-flex items-center gap-1.5 rounded-full bg-card/95 px-2.5 py-1 text-xs font-medium shadow-md">
           <MousePointerClick className="size-3.5 text-primary" aria-hidden="true" />
           Click a farm
         </span>
@@ -45,8 +45,8 @@ export function DemoMap({ farms }: { farms: ShowcaseFarm[] }) {
         <div className="border-t px-4 py-3.5" aria-live="polite">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] font-semibold">{farm.name}</p>
-              <p className="truncate text-[12.5px] text-muted-foreground">
+              <p className="truncate text-base font-semibold">{farm.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
                 {farm.crop} · {farm.areaHa.toLocaleString("en-US", { maximumFractionDigits: 1 })} ha · {farm.region} · ECe{" "}
                 {formatValue(metric, farm.ece)}
               </p>
@@ -54,16 +54,16 @@ export function DemoMap({ farms }: { farms: ShowcaseFarm[] }) {
             {farm.risk ? <RiskBadge level={farm.risk.level} score={farm.risk.score} className="shrink-0" /> : null}
           </div>
           {/* Fixed three-line height so the card (and the hero) does not jump between farms. */}
-          <p className="mt-2 line-clamp-3 min-h-[4.125rem] text-[13.5px] leading-[1.375rem] text-foreground/90">{farm.summary ?? "No insight yet."}</p>
+          <p className="mt-2 line-clamp-3 min-h-[4.125rem] text-sm leading-[1.375rem] text-foreground/90">{farm.summary ?? "No insight yet."}</p>
           <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
             {farm.action ? (
-              <p className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground">
+              <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">Next step:</span> {farm.action.title}
               </p>
             ) : null}
             <Link
               href={`/dashboard?farm=${encodeURIComponent(farm.id)}`}
-              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md text-[13px] font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+              className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
             >
               Open in dashboard <ArrowUpRight className="size-3.5" aria-hidden="true" />
             </Link>

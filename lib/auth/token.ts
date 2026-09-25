@@ -18,6 +18,8 @@ export interface SessionPayload {
   sub: string;
   email: string;
   name: string;
+  /** Random id per sign-in; scopes per-session data such as the shared demo account's chats. */
+  sid?: string;
 }
 
 const encoder = new TextEncoder();
@@ -33,7 +35,9 @@ async function secretKey(): Promise<Uint8Array> {
 }
 
 export async function signSessionToken(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ email: payload.email, name: payload.name })
+  const claims: Record<string, string> = { email: payload.email, name: payload.name };
+  if (payload.sid) claims.sid = payload.sid;
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
@@ -46,7 +50,10 @@ export async function verifySessionToken(token: string | undefined | null): Prom
   try {
     const { payload } = await jwtVerify(token, await secretKey(), { algorithms: ["HS256"] });
     if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
-    return { sub: payload.sub, email: payload.email, name: typeof payload.name === "string" ? payload.name : "" };
+    const session: SessionPayload = { sub: payload.sub, email: payload.email, name: typeof payload.name === "string" ? payload.name : "" };
+    // Tokens issued before `sid` existed simply have none.
+    if (typeof payload.sid === "string" && payload.sid) session.sid = payload.sid;
+    return session;
   } catch {
     return null;
   }

@@ -1,11 +1,10 @@
 "use client";
 
-import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { AnswerText, AssistantMark, sourceText, ThinkingDots } from "@/components/assistant/message-parts";
 import { InfoTip } from "@/components/dashboard/info-tip";
-import { Markdown } from "@/components/dashboard/markdown";
 import { Button } from "@/components/ui/button";
-import { useTypewriter } from "@/hooks/use-typewriter";
 import type { ChatAnswerSource, ChatTurn } from "@/lib/ai/contract";
 import { cn } from "@/lib/utils";
 
@@ -28,12 +27,6 @@ interface Message {
   animate?: boolean;
 }
 
-const SOURCE_LABEL: Record<ChatAnswerSource, string> = {
-  "ai-service": "Yield AI model",
-  llm: "Claude · LLM fallback",
-  offline: "Built-in agronomy engine",
-};
-
 let nextId = 1;
 
 function AssistantMessage({
@@ -47,46 +40,26 @@ function AssistantMessage({
   onProgress: () => void;
   onRetry?: () => void;
 }) {
-  const { shown, typing } = useTypewriter(message.content, Boolean(message.animate), () => onTyped(message.id));
-  const progress = useRef(onProgress);
-  useEffect(() => {
-    progress.current = onProgress;
-  });
-  useEffect(() => {
-    if (typing) progress.current();
-  }, [shown, typing]);
+  const typing = Boolean(message.animate);
 
   return (
     <div className="flex gap-2.5">
-      <span
-        className={cn(
-          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
-          message.error ? "bg-risk-medium-soft text-risk-medium-ink" : "bg-primary text-primary-foreground",
-        )}
-        aria-hidden="true"
-      >
-        <Sparkles className="size-3.5" />
-      </span>
+      <AssistantMark className="mt-0.5" tone={message.error ? "warn" : "primary"} />
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "rounded-2xl rounded-tl-md px-3.5 py-2.5 text-[13.5px] leading-relaxed",
+            "rounded-2xl rounded-tl-md px-3.5 py-2.5 text-sm leading-relaxed",
             message.error ? "bg-risk-medium-soft text-risk-medium-ink" : "bg-card ring-1 ring-border",
           )}
         >
-          <div className={cn(typing && "yai-caret")}>
-            <Markdown text={shown} />
-          </div>
+          <AnswerText content={message.content} animate={typing} onTyped={() => onTyped(message.id)} onProgress={onProgress} />
         </div>
         {message.error && onRetry ? (
           <Button variant="ghost" size="sm" className="mt-1 h-7 px-2 text-xs" onClick={onRetry}>
             <RotateCcw className="size-3" /> Try again
           </Button>
         ) : message.source && !typing ? (
-          <p className="mt-1 pl-1 text-[11px] text-muted-foreground">
-            {SOURCE_LABEL[message.source]}
-            {message.source === "llm" && message.model ? ` (${message.model})` : ""}
-          </p>
+          <p className="mt-1 pl-1 text-xs text-muted-foreground">{sourceText(message.source, message.model)}</p>
         ) : null}
       </div>
     </div>
@@ -207,7 +180,7 @@ export function ChatPanel({
       {showHeader ? (
         <div className="flex items-center gap-2 pb-2">
           <MessageCircleQuestion className="size-4 text-primary" aria-hidden="true" />
-          <h3 className="text-[13px] font-semibold">Ask the agronomist</h3>
+          <h3 className="text-sm font-semibold">Ask the agronomist</h3>
           <InfoTip label="Where answers come from">
             Answers use this farm&apos;s latest probe readings, trends and FAO-56 / FAO-29 values. The team&apos;s fine-tuned model
             answers when AI_SERVICE_URL is set, then Claude as a fallback, then the built-in agronomy engine — so the chat always
@@ -240,7 +213,7 @@ export function ChatPanel({
       >
         {empty ? (
           <div className="flex h-full min-h-28 flex-col justify-center gap-2 px-1 py-2">
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {composer ? "Ask anything about" : "Pick a question about"}{" "}
               <span className="font-semibold text-foreground">{subject}</span> — answers quote its probe readings.
             </p>
@@ -250,7 +223,7 @@ export function ChatPanel({
                   key={chip}
                   type="button"
                   onClick={() => void send(chip)}
-                  className="rounded-full border border-primary/25 bg-card px-3 py-1.5 text-left text-[13px] font-medium text-primary shadow-xs transition-colors hover:border-primary/50 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+                  className="rounded-full border border-primary/25 bg-card px-3 py-1.5 text-left text-sm font-medium text-primary shadow-xs transition-colors hover:border-primary/50 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
                 >
                   {chip}
                 </button>
@@ -261,7 +234,7 @@ export function ChatPanel({
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} ref={m.id === lastQuestionId ? questionRef : undefined} className="flex justify-end">
-              <p className="max-w-[85%] rounded-2xl rounded-tr-md bg-primary px-3.5 py-2 text-[13.5px] leading-snug text-primary-foreground">
+              <p className="max-w-[85%] rounded-2xl rounded-tr-md bg-primary px-3.5 py-2 text-sm leading-snug text-primary-foreground">
                 {m.content}
               </p>
             </div>
@@ -271,13 +244,9 @@ export function ChatPanel({
         )}
         {pending ? (
           <div className="flex items-center gap-2.5" aria-label="The assistant is thinking">
-            <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-hidden="true">
-              <Sparkles className="size-3.5" />
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-2xl rounded-tl-md bg-card px-3.5 py-3 ring-1 ring-border">
-              <span className="size-1.5 animate-bounce rounded-full bg-primary/60 [animation-delay:-0.3s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-primary/60 [animation-delay:-0.15s]" />
-              <span className="size-1.5 animate-bounce rounded-full bg-primary/60" />
+            <AssistantMark />
+            <span className="inline-flex rounded-2xl rounded-tl-md bg-card px-3.5 py-3 ring-1 ring-border">
+              <ThinkingDots />
             </span>
           </div>
         ) : null}
@@ -291,7 +260,7 @@ export function ChatPanel({
               type="button"
               onClick={() => void send(chip)}
               disabled={busy}
-              className="shrink-0 rounded-full border bg-card px-2.5 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-50"
+              className="shrink-0 rounded-full border bg-card px-2.5 py-1 text-xs font-medium text-foreground/80 transition-colors hover:border-primary/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-50"
             >
               {chip}
             </button>
@@ -329,7 +298,7 @@ export function ChatPanel({
             rows={1}
             maxLength={1000}
             placeholder={`Ask about ${subject}…`}
-            className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-[14px] leading-snug outline-none placeholder:text-muted-foreground/80"
+            className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-snug outline-none placeholder:text-muted-foreground/80"
           />
           <Button type="submit" size="icon" className="size-9 shrink-0 rounded-lg" disabled={busy || !draft.trim()} aria-label="Send question">
             {pending ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}

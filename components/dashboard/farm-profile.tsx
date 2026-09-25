@@ -83,10 +83,10 @@ export function FarmProfile({ bundle, day, className }: { bundle: FarmBundle; da
     <dl className={cn("divide-y", className)}>
       {rows.map((r) => (
         <div key={r.label} className="grid gap-x-4 gap-y-0.5 py-2.5 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
-          <dt className="text-[12.5px] font-semibold text-muted-foreground">{r.label}</dt>
+          <dt className="text-sm font-semibold text-muted-foreground">{r.label}</dt>
           <dd className="min-w-0">
-            <span className="block text-[13.5px] font-medium tabular">{r.value}</span>
-            <span className="block text-[11.5px] text-muted-foreground">{r.source}</span>
+            <span className="block text-sm font-medium tabular">{r.value}</span>
+            <span className="block text-xs text-muted-foreground">{r.source}</span>
           </dd>
         </div>
       ))}

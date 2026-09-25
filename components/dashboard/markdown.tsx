@@ -1,10 +1,11 @@
 /**
- * Tiny, safe renderer for the chat's Markdown subset: paragraphs, numbered / bulleted lists and
- * **bold**. Builds React elements — never injects HTML.
+ * Tiny, safe renderer for the chat's Markdown subset: section headings (`### Why`), paragraphs,
+ * numbered / bulleted lists and **bold**. Builds React elements — never injects HTML.
  */
 import { Fragment } from "react";
 
 const LIST_ITEM = /^\s*(\d+[.)]|[-•*])\s+/;
+const HEADING = /^\s*#{1,4}\s+/;
 
 function inline(text: string, keyPrefix: string) {
   // While an answer is being typed, hide a dangling "**" until its partner arrives.
@@ -34,13 +35,31 @@ function List({ lines, ordered, keyPrefix }: { lines: string[]; ordered: boolean
   );
 }
 
+/** Answers label their sections with `### Heading` lines; each heading becomes its own block. */
+function splitBlocks(text: string): string[] {
+  return text
+    .split(/\n{2,}/)
+    .flatMap((block) => block.split(/\n(?=\s*#{1,4}\s)/))
+    .flatMap((block) => {
+      const [first, ...rest] = block.split("\n");
+      return HEADING.test(first) && rest.some((l) => l.trim()) ? [first, rest.join("\n")] : [block];
+    });
+}
+
 export function Markdown({ text, className }: { text: string; className?: string }) {
-  const blocks = text.split(/\n{2,}/);
+  const blocks = splitBlocks(text);
   return (
     <div className={className ?? "space-y-2"}>
       {blocks.map((block, bi) => {
         const lines = block.split("\n").filter((l) => l.trim() !== "");
         if (lines.length === 0) return null;
+        if (lines.length === 1 && HEADING.test(lines[0])) {
+          return (
+            <p key={bi} role="heading" aria-level={4} className="pt-1 font-semibold text-foreground">
+              {inline(lines[0].replace(HEADING, "").replace(/\*\*/g, ""), `${bi}-h`)}
+            </p>
+          );
+        }
         const firstItem = lines.findIndex((l) => LIST_ITEM.test(l));
         const restAreItems = firstItem >= 0 && lines.slice(firstItem).every((l) => LIST_ITEM.test(l));
         if (restAreItems) {

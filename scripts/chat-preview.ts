@@ -19,6 +19,13 @@ const QUESTIONS = [
   "What's the pH situation?",
   "Explain today's ET0",
   "How is the farm doing?",
+  "What does the next week look like?",
+  "When can I spray?",
+  "Is there a fungal disease risk?",
+  "How much will this crop earn?",
+  "When is the harvest?",
+  "Where is the farm?",
+  "Is it too hot for the crop?",
 ];
 
 async function main() {

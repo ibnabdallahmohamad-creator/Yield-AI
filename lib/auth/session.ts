@@ -3,6 +3,7 @@
  * or when Supabase cannot be reached — sign-in must never block the demo.
  */
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -14,6 +15,8 @@ export interface AppUser {
   email: string;
   name: string;
   provider: "supabase" | "local";
+  /** Local sessions only: random id of this sign-in (absent on tokens issued before it existed). */
+  sessionId?: string;
 }
 
 /** Supabase verification budget; past it we treat the Supabase session as absent. */
@@ -22,7 +25,11 @@ const SUPABASE_AUTH_TIMEOUT_MS = 3500;
 export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const cookieStore = await cookies();
   const local = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
-  if (local) return { id: local.sub, email: local.email, name: local.name || local.email, provider: "local" };
+  if (local) {
+    const user: AppUser = { id: local.sub, email: local.email, name: local.name || local.email, provider: "local" };
+    if (local.sid) user.sessionId = local.sid;
+    return user;
+  }
 
   if (!hasSupabaseAuthCookie(cookieStore.getAll().map((c) => c.name))) return null;
   const supabase = await createSupabaseServerClient();
@@ -62,7 +69,7 @@ async function isSecureRequest(): Promise<boolean> {
 }
 
 export async function startLocalSession(user: { id: string; email: string; name: string }): Promise<void> {
-  const token = await signSessionToken({ sub: user.id, email: user.email, name: user.name });
+  const token = await signSessionToken({ sub: user.id, email: user.email, name: user.name, sid: randomUUID() });
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,

@@ -5,14 +5,19 @@
  */
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAccountDashboard, getAccountLiveUpdate } from "../account/dashboard";
+import { isDemoUser } from "../account/store";
+import { DEFAULT_INTERVAL_S } from "../account/types";
+import type { AppUser } from "../auth/session";
 import { env } from "../env";
 import { createSupabaseAdminClient, createSupabaseDataClient, withTimeout } from "../supabase/server";
 import type { DashboardData, Farm, FarmBundle, LiveReading, LiveUpdate, Sensor, SensorReading } from "../types";
 import { aggregateDaily } from "./aggregate";
 import { buildDashboardData, deriveFarmDay } from "./derive";
+import { getNext12hForecasts } from "./forecast";
 import { HISTORY_DAYS } from "./generate";
 import { toSensorReadings, type IngestReading } from "./ingest";
-import { generateInsights } from "./insights";
+import { generateInsights, replayRiskHistory, withReportSections } from "./insights";
 import {
   decodeCursor,
   encodeCursor,
@@ -23,8 +28,8 @@ import {
 import { getMockState, mockIngest, mockIngestedSince, mockMaxIngestedId, mockReadings, mockReadingsForDay } from "./mock-store";
 import {
   fetchDaily,
+  fetchDemoFarms,
   fetchFarmRecent,
-  fetchFarms,
   fetchInsights,
   fetchLatestReading,
   fetchReadingsSince,
@@ -34,6 +39,7 @@ import { dateRangeEnding, qatarDateString } from "./time";
 import { getWeatherForFarms } from "./weather";
 
 const DASHBOARD_TTL_MS = 60_000;
+const RISK_HISTORY_DAYS = 30;
 const SUPABASE_BUDGET_MS = 12_000;
 /** Real probe data counts as "flowing" if a reading arrived within this window. */
 const REAL_FEED_WINDOW_MS = 2 * 60_000;
@@ -57,6 +63,13 @@ function insightTimestamp(now = new Date()): string {
   return t.toISOString();
 }
 
+/** Attach the next-12-hour forecast (downloaded every 12 hours) to every farm. */
+async function withForecasts(data: DashboardData): Promise<DashboardData> {
+  const forecasts = await getNext12hForecasts(data.farms.map((b) => b.farm));
+  for (const bundle of data.farms) bundle.next12h = forecasts[bundle.farm.id] ?? null;
+  return data;
+}
+
 async function buildMockDashboard(sourceNote: string | null): Promise<DashboardData> {
   const state = getMockState();
   const daily = aggregateDaily(mockReadings(state));
@@ -72,21 +85,25 @@ async function buildMockDashboard(sourceNote: string | null): Promise<DashboardD
     sensorsByFarm: state.sensorsByFarm,
   });
   const insights = generateInsights(data, insightTimestamp());
-  for (const bundle of data.farms) bundle.insight = insights.find((i) => i.farm_id === bundle.farm.id) ?? null;
-  return data;
+  for (const bundle of data.farms) {
+    bundle.insight = insights.find((i) => i.farm_id === bundle.farm.id) ?? null;
+    // Demo mode has no stored insight history: replay the insight rules for each of the last 30 days.
+    bundle.riskHistory = replayRiskHistory(bundle, data.dates, RISK_HISTORY_DAYS);
+  }
+  return withForecasts(data);
 }
 
 async function buildSupabaseDashboard(client: SupabaseClient): Promise<DashboardData> {
   const today = qatarDateString(new Date());
   const dates = dateRangeEnding(today, HISTORY_DAYS);
-  const [farms, daily, insights] = await Promise.all([
-    fetchFarms(client),
-    fetchDaily(client, dates[0]),
-    fetchInsights(client),
-  ]);
-  if (farms.length === 0) throw new Error("No farms in Supabase yet — run `npm run seed`");
+  const farms = await fetchDemoFarms(client);
+  if (farms.length === 0) throw new Error("No demo farms in Supabase yet — run `npm run seed`");
+  const ids = farms.map((f) => f.id);
+  const [daily, insights] = await Promise.all([fetchDaily(client, dates[0], ids), fetchInsights(client, ids)]);
   const weather = await getWeatherForFarms(farms);
-  return buildDashboardData({ farms, daily, weather, insights, source: "supabase", sourceNote: null, dates });
+  const data = buildDashboardData({ farms, daily, weather, insights, source: "supabase", sourceNote: null, dates });
+  for (const bundle of data.farms) bundle.insight = withReportSections(bundle);
+  return withForecasts(data);
 }
 
 async function loadDashboard(): Promise<DashboardData> {
@@ -105,8 +122,12 @@ function cacheKey(): string {
   return env.useMock ? `mock:${getMockState().version}` : "supabase";
 }
 
-/** All farms × 60 days with FAO-56 derived values and the latest insights. Cached for a minute. */
-export async function getDashboardData(): Promise<DashboardData> {
+/**
+ * The shared demo dataset: all demo farms × 60 days with FAO-56 derived values and the latest
+ * insights. Cached for a minute. Only the demo account (and the public landing page) see it; pages
+ * use `getDashboardFor(user)`.
+ */
+export async function getDemoDashboard(): Promise<DashboardData> {
   const key = cacheKey();
   const cached = globalCache.__yieldDashboardCache;
   if (cached && cached.key === key && Date.now() - cached.at < DASHBOARD_TTL_MS) return cached.promise;
@@ -130,7 +151,7 @@ const showcaseCache = globalThis as unknown as { __yieldShowcaseCache?: CacheEnt
  * data is only ever shown to signed-in users.
  */
 export async function getShowcaseDashboard(): Promise<DashboardData> {
-  if (env.useMock) return getDashboardData();
+  if (env.useMock) return getDemoDashboard();
   const key = `showcase:${getMockState().version}`;
   const cached = showcaseCache.__yieldShowcaseCache;
   if (cached && cached.key === key && Date.now() - cached.at < SHOWCASE_TTL_MS) return cached.promise;
@@ -142,8 +163,16 @@ export async function getShowcaseDashboard(): Promise<DashboardData> {
   return promise;
 }
 
-export async function getFarmBundle(farmId: string): Promise<{ data: DashboardData; bundle: FarmBundle } | null> {
-  const data = await getDashboardData();
+/**
+ * What this signed-in user may see: the demo dataset for the shared demo account, and only the
+ * account's own farms (none for a new account) for everyone else.
+ */
+export async function getDashboardFor(user: AppUser): Promise<DashboardData> {
+  return isDemoUser(user) ? getDemoDashboard() : getAccountDashboard(user);
+}
+
+export async function getFarmBundleFor(user: AppUser, farmId: string): Promise<{ data: DashboardData; bundle: FarmBundle } | null> {
+  const data = await getDashboardFor(user);
   const bundle = data.farms.find((b) => b.farm.id === farmId);
   return bundle ? { data, bundle } : null;
 }
@@ -156,13 +185,18 @@ function sensorsOf(data: DashboardData): Record<string, Sensor[]> {
 // Live mode
 // ---------------------------------------------------------------------------
 
+/** Live mode for this user: their own devices' readings, or the demo feed for the demo account. */
+export async function getLiveUpdateFor(user: AppUser, cursorParam: string | null): Promise<LiveUpdate> {
+  return isDemoUser(user) ? getLiveUpdate(cursorParam) : getAccountLiveUpdate(user, cursorParam);
+}
+
 /**
- * New readings since `cursor` and the re-derived day for every farm that received some.
- * Real probe data is used when it is arriving; otherwise (LIVE_SIMULATION=auto) the demo feed
- * reports one farm every 5 seconds so the dashboard never looks dead.
+ * Demo account: new readings since `cursor` and the re-derived day for every farm that received some.
+ * Real probe data (sent to the demo farms with INGEST_API_KEY) is used when it is arriving; otherwise
+ * (LIVE_SIMULATION=auto) the demo feed reports one farm every few seconds so the demo never looks dead.
  */
 export async function getLiveUpdate(cursorParam: string | null): Promise<LiveUpdate> {
-  const data = await getDashboardData();
+  const data = await getDemoDashboard();
   const now = Date.now();
   const slot = liveSlotAt(now);
   const today = qatarDateString(now);
@@ -186,9 +220,9 @@ export async function getLiveUpdate(cursorParam: string | null): Promise<LiveUpd
   try {
     if (client) {
       if (cursor) {
-        real = await withTimeout(fetchReadingsSince(client, cursor.id), 5000, "live readings");
+        real = await withTimeout(fetchReadingsSince(client, cursor.id, farms.map((f) => f.id)), 5000, "live readings");
       }
-      const latest = await withTimeout(fetchLatestReading(client), 5000, "latest reading");
+      const latest = await withTimeout(fetchLatestReading(client, farms.map((f) => f.id)), 5000, "latest reading");
       if (latest) {
         maxId = Math.max(maxId, latest.id);
         realFlowing = now - Date.parse(latest.timestamp) < REAL_FEED_WINDOW_MS;
@@ -252,6 +286,8 @@ export async function getLiveUpdate(cursorParam: string | null): Promise<LiveUpd
     serverTime: new Date(now).toISOString(),
     cursor: encodeCursor({ id: maxId, slot: Math.max(slot, cursor?.slot ?? 0) }),
     feed: real.length > 0 || realFlowing ? "probe" : simulated.length > 0 ? "simulated" : "idle",
+    interval_s: DEFAULT_INTERVAL_S,
+    devices: null,
     date: today,
     readings: readings.slice(0, 50),
     farms: farmDays,
@@ -301,8 +337,9 @@ export class IngestError extends Error {
   }
 }
 
+/** INGEST_API_KEY ingest (the hardware team's shared key): readings for the demo farms only. */
 export async function ingestReadings(items: IngestReading[]): Promise<{ inserted: number; target: "supabase" | "mock" }> {
-  const data = await getDashboardData();
+  const data = await getDemoDashboard();
   const { readings, errors } = toSensorReadings(items, data.farms.map((b) => b.farm), sensorsOf(data));
   if (errors.length > 0) throw new IngestError("Some readings were rejected", 422, errors);
 

@@ -13,8 +13,9 @@ test.describe("accounts", () => {
     await expect(page).toHaveURL(/\/login\?next=/);
     await page.getByRole("button", { name: /try the demo account/i }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Al Shamal East Farm");
-    await expect(page).toHaveURL(/farm=shamal-east/);
-    await expect(page.getByRole("radio", { name: "Moisture" })).toHaveAttribute("aria-checked", "true");
+    // The old overview link now opens the farm's workspace, keeping the layer.
+    await expect(page).toHaveURL(/\/dashboard\/farm\/shamal-east\?layer=moisture/);
+    await expect(page.getByRole("combobox", { name: "Map layer" })).toContainText("Soil moisture");
   });
 
   test("signing out returns to the home page and locks the dashboard", async ({ page }) => {

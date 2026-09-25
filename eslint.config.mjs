@@ -6,6 +6,11 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    // Plain Node scripts (e.g. the UI audit in docs/) use CommonJS.
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     rules: {
       // `_name` marks intentionally unused bindings (e.g. dropping a field while destructuring).
       "@typescript-eslint/no-unused-vars": [

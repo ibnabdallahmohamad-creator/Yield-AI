@@ -15,9 +15,12 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "seed": "tsx scripts/seed.ts",
+    "device:sim": "tsx scripts/esp32-sim.ts",
     "data:summary": "tsx scripts/data-summary.ts",
     "insights:preview": "tsx scripts/insights-preview.ts",
-    "chat:preview": "tsx scripts/chat-preview.ts"
+    "chat:preview": "tsx scripts/chat-preview.ts",
+    "dataset:weather": "tsx scripts/dataset/fetch-weather.ts",
+    "dataset:build": "tsx scripts/dataset/build-dataset.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

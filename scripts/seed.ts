@@ -83,17 +83,30 @@ async function main() {
   }
   process.stdout.write("\n");
 
-  const { error: insightError } = await supabase.from("ai_insights").insert(
-    insights.map((insight) => ({
-      farm_id: insight.farm_id,
-      created_at: insight.created_at,
-      risk_score: insight.risk_score,
-      risk_level: insight.risk_level,
-      summary: insight.summary,
-      recommendations: insight.recommendations,
-      crop_suggestion: insight.crop_suggestion,
-    })),
-  );
+  const baseRows = insights.map((insight) => ({
+    farm_id: insight.farm_id,
+    created_at: insight.created_at,
+    risk_score: insight.risk_score,
+    risk_level: insight.risk_level,
+    summary: insight.summary,
+    recommendations: insight.recommendations,
+    crop_suggestion: insight.crop_suggestion,
+  }));
+  const fullRows = insights.map((insight, i) => ({
+    ...baseRows[i],
+    insights: insight.insights,
+    warnings: insight.warnings,
+    forecast: insight.forecast,
+    economics: insight.economics,
+    harvest: insight.harvest,
+  }));
+  let { error: insightError } = await supabase.from("ai_insights").insert(fullRows);
+  if (insightError && /column|schema cache/i.test(insightError.message)) {
+    // Migration 0003 not applied yet: store the core insight; the report sections are recomputed on read.
+    console.warn(`  ! ${insightError.message}
+  ! Apply supabase/migrations/0003_insight_sections.sql to store the report sections.`);
+    ({ error: insightError } = await supabase.from("ai_insights").insert(baseRows));
+  }
   if (insightError) throw new Error(`ai_insights insert: ${insightError.message}`);
 
   console.log("• Ensuring the demo account exists…");

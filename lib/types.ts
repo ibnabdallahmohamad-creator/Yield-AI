@@ -4,7 +4,9 @@
  */
 import type { Et0Method, GrowthStage } from "./agronomy";
 import type { CropId, SalinityClassId, SoilType } from "./agronomy-tables";
+import type { Device } from "./account/types";
 import type { AiInsight } from "./ai/contract";
+import type { HourlyForecast } from "./data/forecast";
 import type { GeoPolygon } from "./geo";
 
 /** `farms` table row. */
@@ -92,6 +94,12 @@ export interface WeatherDay {
   date: string;
   tmax: number | null;
   tmin: number | null;
+  /** Daily mean air temperature, °C. */
+  tmean: number | null;
+  /** Precipitation sum, mm. */
+  precip: number | null;
+  /** Highest hourly chance of precipitation, % (forecast days; usually null for past days). */
+  precipProb: number | null;
   rhMax: number | null;
   rhMin: number | null;
   /** Mean wind speed at 10 m, m/s. */
@@ -159,6 +167,7 @@ export interface FarmDay {
   deficitPct: number | null;
   ks: number | null;
   daysToIrrigation: number | null;
+  /** The next irrigation (when the depletion reaches RAW, or now if it already has), mm: for the crop, and with the leaching fraction. */
   netDepth: number | null;
   grossDepth: number | null;
   // Salinity
@@ -177,15 +186,48 @@ export interface FarmBundle {
   insight: AiInsight | null;
   /** Kc mid/end after the FAO-56 Eq. 62/65 climate adjustment. */
   kcAdjusted: { ini: number; mid: number; end: number };
+  /**
+   * Open-Meteo weather at the farm, oldest first: the date axis plus up to 7 forecast days after
+   * today. Kept apart from `FarmDay.airTmax/airTmin`, which may come from the probe mast instead.
+   * Empty when weather is unavailable.
+   */
+  weatherDays: WeatherDay[];
+  /** AI risk score over time (oldest first), for sparklines. Empty when there is no history. */
+  riskHistory: RiskPoint[];
+  /**
+   * Hourly weather for the next 12 hours at the farm (Open-Meteo, refreshed every 12 hours).
+   * Null when the forecast is unavailable.
+   */
+  next12h: HourlyForecast | null;
 }
 
-export type DataSource = "supabase" | "mock";
+export interface RiskPoint {
+  date: string;
+  score: number;
+}
+
+/**
+ * supabase / mock: the shared demo farms (seeded in Supabase, or built in). account: a real
+ * account's own farms and the readings its ESP32 devices send.
+ */
+export type DataSource = "supabase" | "mock" | "account";
+
+/** A real account's devices, as the dashboard shows them. */
+export interface AccountInfo {
+  devices: Device[];
+  /** How often the dashboard refreshes: the shortest device interval, seconds (10 by default). */
+  interval_s: number;
+  /** Set when the account's farms couldn't be loaded. */
+  error: string | null;
+}
 
 export interface DashboardData {
   generatedAt: string;
   source: DataSource;
   /** Set when the app fell back to demo data (e.g. Supabase unreachable). */
   sourceNote: string | null;
+  /** Present for real accounts (source "account"); null for the demo account. */
+  account: AccountInfo | null;
   weather: { source: "open-meteo" | "unavailable"; note: string | null };
   dates: string[];
   farms: FarmBundle[];
@@ -203,6 +245,10 @@ export interface LiveUpdate {
   /** Opaque cursor; send it back as `?cursor=` on the next poll. */
   cursor: string;
   feed: "probe" | "simulated" | "idle";
+  /** Seconds until the next poll: the account's reading interval (10 s by default). */
+  interval_s: number;
+  /** A real account's devices with their latest status; null for the demo account. */
+  devices: Device[] | null;
   /** Local (Asia/Qatar) day that `farms` describes. */
   date: string;
   /** New readings since the previous poll, newest first. */

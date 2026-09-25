@@ -16,7 +16,7 @@ export function Logo({ className, markClassName }: { className?: string; markCla
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <LogoMark className={markClassName} />
-      <span className="text-[1.05rem] font-semibold tracking-tight">
+      <span className="text-base font-semibold tracking-tight">
         Yield <span className="text-primary">AI</span>
       </span>
     </span>

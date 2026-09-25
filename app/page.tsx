@@ -86,30 +86,30 @@ export default async function Home() {
           <FieldPattern color="#1f5a3d" className="opacity-[0.07]" />
           <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-center lg:gap-12 lg:py-14">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-3 py-1 text-[12.5px] font-semibold text-primary shadow-xs">
+              <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-3 py-1 text-xs font-semibold text-primary shadow-xs">
                 <Sprout className="size-3.5" aria-hidden="true" />
                 The AI-powered CRM for agribusinesses
               </p>
               <h1 className="mt-5 font-display text-[40px] leading-[1.06] font-semibold tracking-tight text-balance sm:text-5xl xl:text-[56px]">
                 Every field, every probe, one clear next step.
               </h1>
-              <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-muted-foreground">
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-xl">
                 Yield AI turns soil-probe readings from farms across northern Qatar into salinity and moisture maps, risk scores and
                 plain-language actions — grounded in FAO-56 and FAO-29 science.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button asChild className="h-11 px-5 text-[15px]">
+                <Button asChild className="h-11 px-5 text-base">
                   <Link href="/dashboard">
                     Open Dashboard <ArrowRight />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-11 bg-card/70 px-5 text-[15px]">
+                <Button asChild variant="outline" className="h-11 bg-card/70 px-5 text-base">
                   <a href="#demo">
                     Try the demo <ArrowDown />
                   </a>
                 </Button>
               </div>
-              <ul className="mt-8 grid gap-x-6 gap-y-2 text-[13.5px] text-muted-foreground sm:grid-cols-2">
+              <ul className="mt-8 grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
                 {[
                   showcase ? `${showcase.farms.length} demo farms, 60 days of readings` : "Demo farms with 60 days of readings",
                   "Salinity, moisture, pH, temperature, NPK",
@@ -183,9 +183,9 @@ export default async function Home() {
                     <step.icon className="size-5" aria-hidden="true" />
                   </span>
                   <div>
-                    <p className="text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">Step {i + 1}</p>
+                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Step {i + 1}</p>
                     <h3 className="text-[16px] font-semibold">{step.title}</h3>
-                    <p className="mt-1 text-[13.5px] leading-relaxed text-muted-foreground">{step.body}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
                   </div>
                   {i < STEPS.length - 1 ? (
                     <ChevronRight
@@ -201,7 +201,7 @@ export default async function Home() {
       </main>
 
       <footer className="border-t">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-6 text-[13px] text-muted-foreground sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-6 text-sm text-muted-foreground sm:px-6">
           <Logo markClassName="size-6" className="text-foreground" />
           <p>Open source (MIT) and free. Farms and readings on this page are simulated demo data.</p>
           <a
@@ -238,8 +238,8 @@ function WidgetCard({
       <div className="flex items-start gap-3 border-b px-4 py-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">{icon}</span>
         <div className="min-w-0">
-          <h3 className="text-[15px] leading-tight font-semibold">{title}</h3>
-          <p className="mt-0.5 text-[12.5px] text-muted-foreground">{description}</p>
+          <h3 className="text-base leading-tight font-semibold">{title}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
       <div className={bodyClassName}>{children}</div>
@@ -251,7 +251,7 @@ function Unavailable() {
   return (
     <div className="flex min-h-40 flex-col items-center justify-center gap-1 p-6 text-center">
       <p className="text-[14px] font-semibold">The demo data is warming up</p>
-      <p className="max-w-xs text-[13px] text-muted-foreground">Refresh in a moment, or open the dashboard to explore the farms.</p>
+      <p className="max-w-xs text-sm text-muted-foreground">Refresh in a moment, or open the dashboard to explore the farms.</p>
     </div>
   );
 }

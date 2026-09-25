@@ -59,7 +59,7 @@ describe("dashboard helpers", () => {
     const day = latestDay(b);
     const facts = farmFacts(b, day);
     expect(facts).toContain("Tomato");
-    expect(facts).toContain(`${b.sensors.length} probes`);
+    expect(facts).toContain(`${b.sensors.length} probe${b.sensors.length === 1 ? "" : "s"}`);
     expect(facts).toMatch(new RegExp(`day ${day.dap}$`));
     expect(farmFacts(b, null)).not.toContain("day");
   });
