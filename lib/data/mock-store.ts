@@ -100,8 +100,13 @@ export function mockIngest(readings: SensorReading[]): StoredReading[] {
   return stored;
 }
 
-export function mockIngestedSince(id: number): StoredReading[] {
-  return getMockState().ingested.filter((r) => r.id > id);
+export function mockIngestedSince(id: number, farmIds?: Set<string>): StoredReading[] {
+  return getMockState().ingested.filter((r) => r.id > id && (!farmIds || farmIds.has(r.farm_id)));
+}
+
+/** Readings posted for the given farms (users' own farms in local mode). */
+export function mockIngestedForFarms(farmIds: Set<string>): StoredReading[] {
+  return getMockState().ingested.filter((r) => farmIds.has(r.farm_id));
 }
 
 export function mockMaxIngestedId(): number {

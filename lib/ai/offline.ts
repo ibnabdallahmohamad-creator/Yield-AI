@@ -7,9 +7,26 @@ import type { CropId } from "../agronomy-tables";
 import type { ChatContext } from "./contract";
 import { fmt, rankCrops, signedPct } from "./analysis";
 
-type Topic = "salinity" | "irrigation" | "crop" | "ph" | "nutrients" | "temperature" | "et" | "yield" | "hotspots" | "summary";
+type Topic =
+  | "weather"
+  | "land"
+  | "salinity"
+  | "irrigation"
+  | "crop"
+  | "ph"
+  | "nutrients"
+  | "temperature"
+  | "et"
+  | "yield"
+  | "hotspots"
+  | "summary";
 
 const TOPIC_PATTERNS: Array<[Topic, RegExp]> = [
+  ["weather", /weather|forecast|tomorrow|this week|next (few |seven |7 )?days|coming days|\bwind(y|s)?\b|humid|\bstorm|\bdust|will it rain|rain (this|next|tomorrow|today)|heat ?wave/i],
+  [
+    "land",
+    /soil (type|quality|here|like)|what (kind of )?soil|fertil(e|ity)|\bland\b|rawd|sabkha|groundwater|aquifer|well water|rainfall|how much (does it )?rain|climate|suitab|grow (here|well)|this (area|region|location|cell)|\bregion\b|municipal|\b(in|about|around|near) (al[ -])?(shamal|khor|sheehaniya|shahaniya|rayyan|wakrah?|daayen|umm salal|doha)\b/i,
+  ],
   ["hotspots", /\b(where|hot ?spots?|problem (spots?|areas?)|which (probe|part|block|area|zone)|worst)\b/i],
   ["salinity", /salin|salt|\bece?\b|leach|conductiv|sodic/i],
   ["irrigation", /irrigat|\bwater(ing)?\b|moist|\bdry\b|drought|deficit|drip|how much|when should|schedul/i],
@@ -218,6 +235,8 @@ function summary(ctx: ChatContext): string {
 }
 
 const RENDER: Record<Topic, (ctx: ChatContext) => string> = {
+  weather,
+  land,
   salinity,
   irrigation,
   crop,
@@ -230,6 +249,120 @@ const RENDER: Record<Topic, (ctx: ChatContext) => string> = {
   summary,
 };
 
+// ---------------------------------------------------------------------------
+// Land atlas, weather and research (retrieved context)
+// ---------------------------------------------------------------------------
+
+const dayName = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
+function citeKnowledge(ctx: ChatContext, max = 1): string {
+  const passages = (ctx.knowledge ?? []).slice(0, max);
+  if (!passages.length) return "";
+  return passages.map((p) => `**From the research — ${p.title}:** ${p.text} (Source: ${p.source}.)`).join("\n\n");
+}
+
+function land(ctx: ChatContext): string {
+  const l = ctx.land;
+  const regions = ctx.region_notes ?? [];
+  if (!l) {
+    return [regions.join("\n\n"), citeKnowledge(ctx)].filter(Boolean).join("\n\n") || "I don't have land-atlas data for this location.";
+  }
+  const well = l.crops.filter((c) => c.suitability === "well-suited").map((c) => c.crop);
+  const managed = l.crops.filter((c) => c.suitability === "with-management").map((c) => `${c.crop} (${c.relative_yield_pct}%)`);
+  const lines = [
+    `**Land around ${ctx.farm.name}** (atlas cell ${l.cell_id}, ${l.municipality}): ${l.landform.toLowerCase()}, ${l.coast_distance_km < 1 ? "on the coast" : `${n1(l.coast_distance_km)} km from the coast`}. ` +
+      `Fertility is **${l.fertility_class.toLowerCase()} (${l.fertility_index}/100 for Qatar)**; rawdat depressions are ${l.rawdat_density} here.`,
+    `**Soil:** ${l.soil.texture}, ${l.soil.depth}; pH ${l.soil.ph}; organic matter ${l.soil.organic_matter}` +
+      (l.soil.typical_ece_dS_m != null ? `; typical ECe before irrigation ≈${n1(l.soil.typical_ece_dS_m)} dS/m.` : "."),
+    `**Climate:** ≈${n0(l.climate.annual_rain_mm)} mm of rain a year (${l.climate.rainy_season}, wettest ${l.climate.wettest_month}); July highs ≈${n1(l.climate.july_mean_max_c)} °C, January lows ≈${n1(l.climate.january_mean_min_c)} °C; mean humidity ${n0(l.climate.mean_rh_pct)}%. ` +
+      `Reference ET₀ is ≈${n0(l.climate.annual_et0_mm)} mm/yr, so rain covers only ≈${n0(l.climate.rain_share_of_et0_pct)}% of crop water needs.`,
+    `**Groundwater:** ${l.groundwater.basin}, ≈${n0(l.groundwater.tds_mg_l)} mg/L TDS (ECw ≈${n1(l.groundwater.ecw_dS_m)} dS/m — FAO-29 restriction ${l.groundwater.fao29_restriction.replace("-", " to ")}).`,
+  ];
+  if (well.length || managed.length) {
+    lines.push(
+      `**What grows here with the local water:** ${well.length ? `well suited — ${well.slice(0, 6).join(", ")}` : "no vegetable is fully tolerant"}` +
+        (managed.length ? `; with extra leaching — ${managed.slice(0, 4).join(", ")}` : "") +
+        ". Salt-sensitive vegetables need desalinated or blended water.",
+    );
+  }
+  if (l.protected_area) lines.push(`Note: part of this area may lie in ${l.protected_area}.`);
+  const extra = [regions.join("\n\n"), citeKnowledge(ctx)].filter(Boolean).join("\n\n");
+  return `${lines.join("\n\n")}${extra ? `\n\n${extra}` : ""}\n\nLand-atlas values are modelled at 10 km² scale; a lab soil and water test on the field overrides them.`;
+}
+
+function weather(ctx: ChatContext): string {
+  const w = ctx.weather;
+  if (!w || (!w.current && w.forecast_7d.length === 0)) {
+    return "I can't reach the weather service right now, so I don't have a forecast for this farm.";
+  }
+  const lines: string[] = [];
+  const c = w.current;
+  if (c) {
+    lines.push(
+      `**Now at ${ctx.farm.name}:** ${n0(c.temp_c)} °C${c.feels_like_c != null ? ` (feels ${n0(c.feels_like_c)} °C)` : ""}, humidity ${n0(c.humidity_pct)}%, wind ${c.wind_dir ?? ""} ${n0(c.wind_kph)} km/h${c.gust_kph ? ` gusting ${n0(c.gust_kph)}` : ""} — ${c.condition.toLowerCase()}.`,
+    );
+  }
+  const days = w.forecast_7d;
+  if (days.length) {
+    lines.push(
+      `**Next ${days.length} days:**\n${days
+        .map(
+          (d) =>
+            `- ${dayName(d.date)}: ${n0(d.tmax_c)}/${n0(d.tmin_c)} °C, RH ${n0(d.rh_min_pct)}–${n0(d.rh_max_pct)}%, wind ${d.wind_dir ?? ""} ${n0(d.wind_mean_kph)} km/h (max ${n0(d.wind_max_kph)}), rain ${fmt(d.precip_mm, 1)} mm${d.et0_mm != null ? `, ET₀ ${n1(d.et0_mm)} mm` : ""}`,
+        )
+        .join("\n")}`,
+    );
+    const hottest = days.reduce((a, d) => ((d.tmax_c ?? -99) > (a.tmax_c ?? -99) ? d : a));
+    const windiest = days.reduce((a, d) => ((d.wind_max_kph ?? 0) > (a.wind_max_kph ?? 0) ? d : a));
+    const wet = days.filter((d) => (d.precip_mm ?? 0) >= 2);
+    const tips: string[] = [];
+    if ((hottest.tmax_c ?? 0) >= 42) tips.push(`${dayName(hottest.date)} peaks at ${n0(hottest.tmax_c)} °C — irrigate before sunrise and protect young plants with shade net.`);
+    if ((windiest.wind_max_kph ?? 0) >= 35) tips.push(`Strong wind on ${dayName(windiest.date)} (up to ${n0(windiest.wind_max_kph)} km/h) — raises crop water use and dust; check greenhouse covers and windbreaks.`);
+    if (wet.length) tips.push(`Rain expected on ${wet.map((d) => dayName(d.date)).join(", ")} — reduce irrigation that day and let it help leach salts.`);
+    const et0s = days.map((d) => d.et0_mm).filter((v): v is number => v != null);
+    const kc = ctx.derived.kc;
+    if (et0s.length && kc != null) {
+      const meanEt0 = et0s.reduce((a, b) => a + b, 0) / et0s.length;
+      tips.push(
+        `Crop water use this week ≈ Kc ${fmt(kc, 2)} × ET₀ ${n1(meanEt0)} = **${n1(kc * meanEt0)} mm/day** for ${ctx.farm.crop.toLowerCase()} (≈${n0(kc * meanEt0 * ctx.farm.area_ha * 10)} m³/day on ${n1(ctx.farm.area_ha)} ha, before leaching).`,
+      );
+    }
+    if (tips.length) lines.push(`**What it means:**\n${tips.map((t, i) => `${i + 1}. ${t}`).join("\n")}`);
+  }
+  if (w.alerts.length) lines.push(`**Alerts:** ${w.alerts.join("; ")}`);
+  lines.push(`Sources: ${w.sources.join(" + ") || "weather service"}.`);
+  return lines.join("\n\n");
+}
+
+/** Topics that need probe readings, answered before the first reading arrives. */
+function noReadings(ctx: ChatContext, topic: Topic): string {
+  const intro = `**${ctx.farm.name} has no probe readings yet**, so I can't measure moisture or salinity there. Add sensors on the farm page and have them post to /api/readings; until then, here is what the land atlas and forecast say.`;
+  const l = ctx.land;
+  const parts = [intro];
+  if (topic === "salinity" && l) {
+    parts.push(
+      `Local groundwater is ≈${n0(l.groundwater.tds_mg_l)} mg/L TDS (ECw ≈${n1(l.groundwater.ecw_dS_m)} dS/m). Irrigating with it at a 15–20% leaching fraction settles root-zone salinity near ECe ≈ ${n1(1.5 * l.groundwater.ecw_dS_m)} dS/m (FAO-29) — ` +
+        `${1.5 * l.groundwater.ecw_dS_m > ctx.derived.crop_salinity_threshold_dS_m ? "above" : "within"} the ${n1(ctx.derived.crop_salinity_threshold_dS_m)} dS/m ${ctx.farm.crop.toLowerCase()} threshold. With your irrigation water (ECw ${n1(ctx.farm.irrigation_water_ec_dS_m)} dS/m) the leaching requirement is **${n0(ctx.derived.leaching_requirement_pct)}%**.`,
+    );
+  } else if ((topic === "irrigation" || topic === "et") && ctx.weather) {
+    parts.push(weather(ctx));
+    parts.push(
+      `Your ${ctx.farm.soil_type} holds ≈${n0(ctx.derived.taw_mm)} mm of available water in the root zone, of which ${n0(ctx.derived.raw_mm)} mm can be used before stress (FAO-56) — irrigate in short, frequent pulses.`,
+    );
+    return parts.join("\n\n");
+  } else if (topic === "crop" && l) {
+    parts.push(land(ctx));
+    return parts.join("\n\n");
+  } else {
+    if (l) parts.push(land(ctx).split("\n\n").slice(0, 3).join("\n\n"));
+    if (ctx.weather?.forecast_7d.length) parts.push(weather(ctx).split("\n\n").slice(0, 1).join(""));
+  }
+  return parts.join("\n\n");
+}
+
+const NEEDS_READINGS = new Set<Topic>(["salinity", "irrigation", "ph", "nutrients", "temperature", "et", "yield", "hotspots", "summary", "crop"]);
+
 export function answerOffline(question: string, ctx: ChatContext): string {
   const q = question.trim();
   if (/^(hi|hello|hey|salam|marhaba|good (morning|evening))\b/i.test(q) && q.length < 30) {
@@ -241,5 +374,9 @@ export function answerOffline(question: string, ctx: ChatContext): string {
   const topics = detectTopics(q).slice(0, 2);
   // "Why is salinity rising / what should I plant" → one focused answer is better than two.
   const unique = topics.length === 2 && (topics[1] === "summary" || topics[0] === "hotspots") ? [topics[0]] : topics;
+  if (!ctx.has_readings) {
+    const first = unique[0];
+    return NEEDS_READINGS.has(first) ? noReadings(ctx, first) : RENDER[first](ctx);
+  }
   return unique.map((t) => RENDER[t](ctx)).join("\n\n");
 }

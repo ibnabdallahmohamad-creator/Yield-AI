@@ -3,6 +3,7 @@ import { aiServiceConfigured } from "@/lib/ai/service";
 import { llmAvailable } from "@/lib/ai/llm";
 import { env } from "@/lib/env";
 import { getDashboardData } from "@/lib/data/repository";
+import { farmStore } from "@/lib/farms/store";
 
 /** GET /api/health — which integrations are live. Handy for teammates wiring up the AI service or probes. */
 export async function GET() {
@@ -11,7 +12,11 @@ export async function GET() {
     {
       ok: true,
       data: { source: data.source, note: data.sourceNote, farms: data.farms.length, days: data.dates.length, latest: data.dates.at(-1) },
-      weather: data.weather,
+      weather: {
+        ...data.weather,
+        realtime: env.weatherApiKey ? "weatherapi.com" : "open-meteo (set WEATHERAPI_KEY for WeatherAPI.com)",
+      },
+      farm_store: farmStore().kind,
       auth: env.supabaseConfigured ? "supabase (+ local fallback)" : "local accounts",
       chat: aiServiceConfigured() ? "ai-service" : llmAvailable() ? "llm" : "offline",
       ingest: Boolean(env.ingestApiKey),

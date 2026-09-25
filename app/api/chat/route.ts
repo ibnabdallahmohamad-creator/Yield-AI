@@ -3,13 +3,17 @@ import { buildChatContext } from "@/lib/ai/context";
 import { ChatRequestSchema, type ChatAnswerSource, type ChatResponse } from "@/lib/ai/contract";
 import { askLlm, llmAvailable } from "@/lib/ai/llm";
 import { answerOffline } from "@/lib/ai/offline";
+import { groundContext } from "@/lib/ai/rag";
 import { aiServiceConfigured, askAiService } from "@/lib/ai/service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFarmBundle } from "@/lib/data/repository";
+import { scopeFor } from "@/lib/farms/scope";
 
 /**
  * POST /api/chat — { farm_id, question, date?, history? } → ChatResponse.
  * Answer chain: the team's AI service → Claude (LLM fallback) → offline agronomy engine.
+ * Every answer is grounded in the farm's readings plus retrieved land-atlas, weather and research
+ * context (lib/ai/rag.ts), so farms without probe data yet still get useful answers.
  */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -27,14 +31,15 @@ export async function POST(request: Request) {
   }
   const { farm_id, question, date, history } = parsed.data;
 
-  const found = await getFarmBundle(farm_id);
+  const found = await getFarmBundle(scopeFor(user), farm_id);
   if (!found) return NextResponse.json({ error: "That farm doesn't exist." }, { status: 404 });
   const { data, bundle } = found;
   const dateIndex = date ? data.dates.indexOf(date) : -1;
-  const context = buildChatContext(bundle, data, dateIndex >= 0 ? dateIndex : undefined);
-  if (!context) {
-    return NextResponse.json({ error: "There are no readings for this farm yet." }, { status: 409 });
-  }
+  const context = await groundContext(
+    buildChatContext(bundle, data, dateIndex >= 0 ? dateIndex : undefined),
+    { lat: bundle.farm.lat, lng: bundle.farm.lng },
+    question,
+  );
 
   let answer: string | null = null;
   let source: ChatAnswerSource = "offline";

@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, Crosshair, Layers, MapIcon, Maximize2, SatelliteIcon } from "lucide-react";
+import { ClipboardList, Crosshair, Layers, Map as AtlasIcon, MapIcon, Maximize2, Plus, Radar, SatelliteIcon, Sprout } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
@@ -18,6 +18,8 @@ import { RiskBadge } from "@/components/dashboard/risk-badge";
 import { ScrollFade } from "@/components/dashboard/scroll-fade";
 import { Segmented } from "@/components/dashboard/segmented";
 import { Timeline } from "@/components/dashboard/timeline";
+import { LandProfileLoader } from "@/components/land/land-profile-loader";
+import { WeatherCard } from "@/components/weather/weather-card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -70,14 +72,66 @@ function MapChip({ children, className }: { children: React.ReactNode; className
   );
 }
 
+/** First visit to a new account: no farms yet. */
+function EmptyFarms({ user, canEdit, note }: { user: DashboardUser; canEdit: boolean; note: string | null }) {
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <DashboardHeader user={user} canEdit={canEdit} />
+      <main id="main" className="flex flex-1 items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-3xl border bg-card p-6 text-center shadow-xs sm:p-8">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-forest-50 text-primary">
+            <Sprout className="size-6" aria-hidden="true" />
+          </span>
+          <h1 className="mt-4 font-display text-[28px] leading-tight font-semibold tracking-tight">Add your first farm</h1>
+          <p className="mx-auto mt-2 max-w-md text-[14px] text-muted-foreground">
+            Search for your farm, drop a pin on it and outline the field. Then place your sensors by clicking the map or typing their
+            coordinates. Yield AI shows the land profile, live weather and a 7-day forecast straight away. Probe readings are added as they arrive.
+          </p>
+          {note ? <p className="mt-3 rounded-lg bg-risk-medium-soft px-3 py-2 text-[13px] text-risk-medium-ink">{note}</p> : null}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            {canEdit ? (
+              <Button asChild size="lg">
+                <Link href="/dashboard/farms/new">
+                  <Plus /> Add a farm
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild size="lg" variant="outline">
+              <Link href="/dashboard/land">
+                <AtlasIcon /> Explore the land atlas
+              </Link>
+            </Button>
+          </div>
+          <ol className="mx-auto mt-8 grid max-w-md gap-3 text-left text-[13px] sm:grid-cols-3">
+            {[
+              ["1", "Find your farm", "Search a place or coordinates, then drop the pin."],
+              ["2", "Add sensors", "Pin each probe on the map, or type its latitude and longitude."],
+              ["3", "Ask the agronomist", "Answers draw on your land profile, the forecast and research."],
+            ].map(([n, t, b]) => (
+              <li key={n} className="rounded-xl bg-sand-100 p-3">
+                <span className="text-[12px] font-bold text-primary">Step {n}</span>
+                <span className="block font-semibold">{t}</span>
+                <span className="text-muted-foreground">{b}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 export function DashboardShell({
   data: serverData,
   user,
+  canEdit = false,
   initialFarmId,
   initialMetric,
 }: {
   data: DashboardData;
   user: DashboardUser;
+  /** The account can add farms and sensors (not the read-only demo account). */
+  canEdit?: boolean;
   initialFarmId?: string;
   initialMetric?: MetricKey;
 }) {
@@ -95,10 +149,11 @@ export function DashboardShell({
   const last = dates.length - 1;
   const ranked = useMemo(() => rankFarms(data.farms), [data.farms]);
 
-  const latestWithData = useMemo(
-    () => Math.max(0, ...serverData.farms.map((b) => lastDataIndex(b))),
-    [serverData.farms],
-  );
+  // The latest day any farm has data for; today when no probe has reported yet.
+  const latestWithData = useMemo(() => {
+    const latest = Math.max(-1, ...serverData.farms.map((b) => lastDataIndex(b)));
+    return latest >= 0 ? latest : Math.max(0, serverData.dates.length - 1);
+  }, [serverData.farms, serverData.dates.length]);
 
   const [farmId, setFarmId] = useState(() =>
     initialFarmId && serverData.farms.some((b) => b.farm.id === initialFarmId)
@@ -262,16 +317,7 @@ export function DashboardShell({
     [farmId, dates, dateIndex],
   );
 
-  if (!bundle) {
-    return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-lg font-semibold">No farms yet</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Add farms to Supabase (or run <code>npm run seed</code>) and they will appear here.
-        </p>
-      </div>
-    );
-  }
+  if (!bundle) return <EmptyFarms user={user} canEdit={canEdit} note={data.sourceNote} />;
 
   const { farm, insight } = bundle;
   const day = bundle.days[dateIndex] ?? null;
@@ -279,6 +325,7 @@ export function DashboardShell({
   const selectedMapValue = farmValueAt(bundle, metric, mapIndex);
   const chips = suggestedQuestions(bundle.days[lastDataIndex(bundle, dateIndex)] ?? null);
   const flashKey = flashes[farm.id] && dateIndex === last ? flashes[farm.id] : undefined;
+  const hasReadings = lastDataIndex(bundle) >= 0;
 
   const farmList = (
     <FarmList
@@ -298,6 +345,7 @@ export function DashboardShell({
         source={data.source}
         sourceFallback={Boolean(data.sourceNote)}
         weatherOffline={data.weather.source === "unavailable"}
+        canEdit={canEdit}
         live={live}
         onLiveChange={toggleLive}
         liveStatus={liveStatus}
@@ -317,6 +365,11 @@ export function DashboardShell({
               <h1 className="font-display text-[26px] leading-tight font-semibold tracking-tight">{farm.name}</h1>
               {insight ? <RiskBadge level={insight.risk_level} score={Math.round(insight.risk_score)} /> : null}
               <div className="ml-auto flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/dashboard/farm/${encodeURIComponent(farm.id)}/sensors`}>
+                    <Radar /> Sensors
+                  </Link>
+                </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/dashboard/farm/${encodeURIComponent(farm.id)}?layer=${metricKey}`}>
                     <ClipboardList /> Details
@@ -437,8 +490,25 @@ export function DashboardShell({
               </div>
             </section>
 
+            {!hasReadings ? (
+              <div className="rounded-2xl border border-dashed bg-card px-4 py-3 text-[13.5px]">
+                <p className="font-semibold">No probe readings yet</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  {bundle.sensors.length
+                    ? `${bundle.sensors.length} sensor${bundle.sensors.length === 1 ? " is" : "s are"} registered — readings appear here as soon as they post to /api/readings.`
+                    : "Place your sensors on the map so their readings can be mapped across the field."}{" "}
+                  <Link className="font-medium text-primary hover:underline" href={`/dashboard/farm/${encodeURIComponent(farm.id)}/sensors`}>
+                    {bundle.sensors.length ? "Manage sensors" : "Add sensors"}
+                  </Link>
+                  . Until then, the weather, land profile and assistant below already work.
+                </p>
+              </div>
+            ) : null}
+
             {/* Headline numbers */}
             <KpiTiles bundle={bundle} day={day} thenDay={thenDay} flashKey={flashKey} />
+
+            <WeatherCard key={`weather-${farm.id}`} farmId={farm.id} />
 
             {/* Chart */}
             <section aria-labelledby="chart-heading" className="rounded-2xl border bg-card p-3 shadow-xs sm:p-4">
@@ -501,6 +571,8 @@ export function DashboardShell({
                 }
               />
             </section>
+
+            <LandProfileLoader lat={farm.lat} lng={farm.lng} />
           </main>
 
           <aside

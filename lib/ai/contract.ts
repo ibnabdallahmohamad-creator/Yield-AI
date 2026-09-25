@@ -6,7 +6,8 @@
  *  3. `AiServiceChatRequest`  our server → POST ${AI_SERVICE_URL}
  *  4. `AiServiceChatResponse` AI service → our server
  *  5. `ChatResponse`          our server → browser
- *  6. `ChatContext`           grounding data sent with every question (readings, trends, FAO-56 values)
+ *  6. `ChatContext`           grounding data sent with every question (readings, trends, FAO-56 values,
+ *                             plus retrieved land-atlas, weather and research passages — RAG)
  *
  * Change a format here and TypeScript will point at every place that needs updating.
  * The README documents the same shapes for the AI and hardware teammates.
@@ -134,7 +135,93 @@ export interface ChatResponse {
 // 6. Chat context — grounding data sent with every question
 // ---------------------------------------------------------------------------
 
+/** The 10 km² land-atlas cell under the farm (lib/land) — retrieved for every question. */
+export interface LandContext {
+  cell_id: string;
+  municipality: string;
+  landform: string;
+  coast_distance_km: number;
+  fertility_index: number;
+  fertility_class: string;
+  rawdat_density: string;
+  protected_area: string | null;
+  soil: {
+    description: string;
+    texture: string;
+    depth: string;
+    ph: string;
+    organic_matter: string;
+    typical_ece_dS_m: number | null;
+  };
+  climate: {
+    annual_rain_mm: number;
+    rainy_season: string;
+    wettest_month: string;
+    annual_mean_temp_c: number;
+    july_mean_max_c: number;
+    january_mean_min_c: number;
+    mean_rh_pct: number;
+    mean_wind_10m_m_s: number;
+    annual_et0_mm: number;
+    peak_et0_mm_day: number;
+    rain_share_of_et0_pct: number;
+    method: string;
+  };
+  groundwater: { basin: string; tds_mg_l: number; ecw_dS_m: number; fao29_restriction: string; note: string };
+  /** Crops ranked for irrigation with the local groundwater (Maas–Hoffman, ECe ≈ 1.5 × ECw). */
+  crops: Array<{ crop: string; relative_yield_pct: number; with_low_salt_water_pct: number; suitability: string; season: string }>;
+  /** The full cell description (the retrieved document). */
+  description: string;
+  /** One line on the 8 surrounding cells. */
+  surroundings: string;
+  sources: string[];
+}
+
+/** Real-time conditions and the 7-day forecast at the farm (WeatherAPI.com, Open-Meteo fills gaps). */
+export interface WeatherContext {
+  sources: string[];
+  current: {
+    observed_at: string;
+    temp_c: number | null;
+    feels_like_c: number | null;
+    humidity_pct: number | null;
+    wind_kph: number | null;
+    gust_kph: number | null;
+    wind_dir: string | null;
+    precip_mm: number | null;
+    condition: string;
+  } | null;
+  forecast_7d: Array<{
+    date: string;
+    tmax_c: number | null;
+    tmin_c: number | null;
+    rh_min_pct: number | null;
+    rh_max_pct: number | null;
+    wind_mean_kph: number | null;
+    wind_max_kph: number | null;
+    wind_dir: string | null;
+    precip_mm: number | null;
+    chance_of_rain_pct: number | null;
+    et0_mm: number | null;
+    condition: string;
+    source: string;
+  }>;
+  alerts: string[];
+  note: string | null;
+}
+
+/** A research passage retrieved for the question (lib/land/knowledge.ts). */
+export interface KnowledgeContext {
+  id: string;
+  title: string;
+  text: string;
+  source: string;
+  url?: string;
+}
+
 export interface ChatContext {
+  /** False until the farm's probes have sent readings; then only land, weather and farm settings are known. */
+  has_readings: boolean;
   farm: {
     id: string;
     name: string;
@@ -206,4 +293,12 @@ export interface ChatContext {
   };
   latest_insight: Pick<AiInsight, "risk_score" | "risk_level" | "summary" | "recommendations" | "crop_suggestion"> | null;
   market: { oversupplied: string[]; undersupplied: string[]; crop_status: string };
+  /** Retrieved land-atlas cell for the farm's location. */
+  land?: LandContext | null;
+  /** Real-time weather and the 7-day forecast. */
+  weather?: WeatherContext | null;
+  /** Research passages that match the question. */
+  knowledge?: KnowledgeContext[];
+  /** Summaries of any municipality the question names. */
+  region_notes?: string[];
 }

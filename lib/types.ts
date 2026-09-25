@@ -179,7 +179,8 @@ export interface FarmBundle {
   kcAdjusted: { ini: number; mid: number; end: number };
 }
 
-export type DataSource = "supabase" | "mock";
+/** Where the dashboard data comes from: Supabase, the built-in demo dataset, or the local farm store. */
+export type DataSource = "supabase" | "mock" | "local";
 
 export interface DashboardData {
   generatedAt: string;

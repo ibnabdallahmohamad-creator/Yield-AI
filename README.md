@@ -36,9 +36,38 @@ never breaks.
     source.
 - **Accounts** — every user signs in. Supabase Auth is used when configured; otherwise local accounts
   are stored in `.data/`. A **Try the demo account** button signs in with one click.
+- **Your own farms** — a new account starts **empty**. **Add a farm (`/dashboard/farms/new`)**:
+  - search for it by name (OpenStreetMap, limited to Qatar), by coordinates (`25.75, 51.37`) or by an
+    atlas cell id, or just click the map;
+  - drop the pin and drag it to adjust, then give the field size or draw its outline corner by corner;
+  - the land profile of that spot appears as you move the pin, and soil type and irrigation-water
+    salinity default to the land-atlas estimate.
+- **Sensors (`/dashboard/farm/[id]/sensors`)** — place each probe by clicking the map (drag to adjust)
+  or by typing its latitude/longitude. Sensor IDs are generated (e.g. `GVF-7B75-01`) or match the ID
+  your probe sends. Readings posted to `/api/readings` for that farm and sensor show up on the farm's
+  dashboard.
+- **Land atlas (`/dashboard/land`)** — Qatar split into ≈1,200 cells of **10 km²**. Every cell has a
+  description with:
+  - soil and fertility;
+  - long-term rainfall, temperatures, humidity and wind;
+  - reference ET₀;
+  - groundwater salinity;
+  - the crops it can grow with the local water;
+  - the research behind each number, cited;
+  - a 7-day weather, humidity and wind forecast derived for the cell.
+- **Live weather** on every farm: current conditions from **WeatherAPI.com** and a 7-day forecast.
+  WeatherAPI.com supplies the days your plan returns; Open-Meteo fills the rest of the week.
+- **Grounded assistant (RAG)** — every chat question retrieves:
+  - the land-atlas cell under the farm;
+  - the live weather and 7-day forecast;
+  - the research passages that match the question;
+  - summaries of any municipality the question names.
+
+  Farms without probe data yet still get useful answers.
 
 The landing page only ever shows the built-in demo dataset. Real farm data is visible only to
-signed-in users.
+signed-in users, and each account sees only its own farms. The demo account shows the demo farms
+and is read-only.
 
 ## Quick start
 
@@ -83,17 +112,24 @@ Copy `.env.example` to `.env.local`. Every variable is optional.
 | `INGEST_API_KEY` | Enables `POST /api/readings` for the probes. |
 | `LIVE_SIMULATION` | Live-mode feed: `auto` (default) simulates readings when no real ones arrive; `on` or `off`. |
 | `OPEN_METEO_DISABLED` | `true` skips Open-Meteo. ET₀ is then estimated with Hargreaves. |
+| `WEATHERAPI_KEY` | [WeatherAPI.com](https://www.weatherapi.com) key for real-time conditions and the forecast on every farm and in the assistant. Server-side only; without it Open-Meteo provides the forecast. |
 
-Check what is active at `GET /api/health`, which reports the data source, auth, chat chain, ingest
-and live mode.
+Check what is active at `GET /api/health`. It reports:
+- the data source and farm store (`local` or `supabase`);
+- the weather providers;
+- auth, the chat chain, ingest and live mode.
 
 ## Supabase setup
 
-1. Create a Supabase project. Apply `supabase/migrations/0001_init.sql`, either with
-   `npx supabase db push` or by pasting it into the SQL editor. It creates:
-   - the tables `farms`, `sensor_readings` and `ai_insights`;
-   - a `sensor_daily` view (daily means per probe, Asia/Qatar days);
-   - row-level security (only signed-in users can read).
+1. Create a Supabase project. Apply the migrations in order, either with `npx supabase db push` or
+   by pasting them into the SQL editor:
+   - `0001_init.sql` creates:
+     - the tables `farms`, `sensor_readings` and `ai_insights`;
+     - a `sensor_daily` view (daily means per probe, Asia/Qatar days);
+     - row-level security.
+   - `0002_user_farms.sql` adds:
+     - `farms.owner_id` and a `sensors` table;
+     - row-level security, so each user sees only the shared demo farms (`owner_id` null) and their own.
 2. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 3. Run `npm run seed`. It loads:
    - 8 farms in northern Qatar;
@@ -105,6 +141,17 @@ and live mode.
 
 If Supabase is unreachable, the dashboard falls back to the demo data and shows a "Demo data · offline"
 badge instead of an error.
+
+### Where users' farms are stored
+
+Where a user's farms and sensors are stored depends on the setup:
+- **Supabase** (tables from migration 0002) when Supabase is configured with
+  `SUPABASE_SERVICE_ROLE_KEY` and `USE_MOCK` is off;
+- otherwise a local JSON file, `.data/farms.json` (git-ignored). It falls back to the OS temp
+  directory on read-only file systems.
+
+Serverless hosts such as Vercel do not keep local files, so **configure Supabase in production** or
+added farms will not survive a redeploy.
 
 ## AI integration
 
@@ -178,8 +225,22 @@ Browser → server (requires a signed-in session):
 }
 ```
 
-`source` is `ai-service`, `llm` or `offline`, and the chat labels every answer with it. Answers are
-tried in this order, stopping at the first one that responds:
+`source` is `ai-service`, `llm` or `offline`, and the chat labels every answer with it.
+
+**Retrieval (RAG).** Before answering, the server adds four optional fields to the `ChatContext`
+([`lib/ai/rag.ts`](lib/ai/rag.ts)). Their types are in `contract.ts`.
+
+| Field | What it holds |
+| --- | --- |
+| `land` | The 10 km² land-atlas cell under the farm: soil, fertility, climate, groundwater, ranked crops, the full description and a line on the 8 neighbouring cells |
+| `weather` | Current conditions and the 7-day forecast from WeatherAPI.com (Open-Meteo fills the days the plan doesn't return) |
+| `knowledge` | Up to 3 research passages matching the question, found by BM25 over [`lib/land/knowledge.ts`](lib/land/knowledge.ts), each with its citation |
+| `region_notes` | Summaries of any municipality the question names |
+
+`has_readings` is `false` until the farm's probes report. In that case the readings are empty and
+the answer draws on the land, weather and research context.
+
+Answers are tried in this order, stopping at the first one that responds:
 
 1. **`AI_SERVICE_URL`** — the server POSTs `{ farm_id, question, context, history }` and expects
    `{ "answer": "…" }` back (`response`, `text` or `message` are accepted too, plus optional
@@ -219,6 +280,8 @@ Units and defaults:
 | `lat`, `lng` | Default to the probe's known position |
 
 Readings go to Supabase, or to the in-memory demo store in mock mode. Live mode shows them within 5 s.
+For a user's own farm, use the farm ID and sensor IDs shown on its **Sensors** page. Unknown farm IDs
+are rejected.
 
 ## The science
 
@@ -242,6 +305,26 @@ naming the method.
 | Salinity classes | Non-saline < 2, slightly 2–4, moderately 4–8, strongly 8–16, very strongly > 16 dS/m (ECe) |
 | Field maps | Inverse-distance weighting, power 2, on 5 m cells, clipped to the field polygon |
 
+### The land atlas ([`lib/land/`](lib/land))
+
+The atlas is a planning guide at 10 km² scale; a lab soil and water test on the field overrides it.
+Each part has one named method or source, and every model parameter is labelled in the code.
+
+| What | Method / source |
+| --- | --- |
+| Grid | Squares of √10 km ≈ 3.16 km. Cells are kept when at least 15 % of them is land, using the municipality boundaries from geoBoundaries QAT ADM1 (Qatar Open Data Portal, CC BY 4.0). Gives ≈1,200 cells over ≈11,500 km². |
+| Rainfall | Mamoon & Rahman (2017), *Natural Hazards* 85: 453–470: ≈55 mm/yr in the south to ≈105 mm/yr in the north. Distributed over the months like the Doha normals. |
+| Temperature, humidity, wind | Qatar Meteorology Department normals for Doha, 1962–2013, adjusted for latitude and distance to the coast (hotter summer days and cooler winter nights inland). |
+| Reference ET₀ | FAO-56 Hargreaves (Eq. 52), monthly, from the modelled temperatures. |
+| Soils and landform | Classes from Scheibert et al. (2005), *The Atlas of Soils for the State of Qatar*: rawdat, limestone plateau, coastal flats, sabkha, dunes, Dukhan. Rawdat depth and texture follow Karanisa et al. (2021), *Sustainability* 13: 4059. |
+| Fertility | An index relative to Qatar's own soils: rawdat density, salinity, coastal flats, rainfall. |
+| Groundwater | Surface through the published ranges: 500–3,000 mg/L TDS in the northern and central aquifers, up to ≈10,000 mg/L near the coast, poorest in the south (UN-ESCWA & BGR 2013). ECw ≈ TDS / 640, with FAO-29 Table 1 classes. |
+| What it can grow | Maas–Hoffman relative yield at ECe ≈ 1.5 × ECw, for the 6 modelled crops plus 11 more from FAO-29 Table 4 (date palm, barley, wheat, sorghum, Bermuda grass, beet, spinach, cabbage, potato, lettuce, onion). |
+| 7-day forecast per cell | WeatherAPI.com and Open-Meteo forecasts at 13 anchor points across Qatar, interpolated to each cell by inverse-distance weighting (power 2). |
+
+`GET /api/land?lat=…&lng=…` (or `?cell=QA-R45-C21`) returns a cell's full profile. Add `&forecast=1`
+for its 7-day forecast. `GET /api/weather?farm=<id>` returns a farm's live weather.
+
 > **Note on "Maas–Hanson":** the project brief mentions a "Maas–Hanson" model. The salinity
 > threshold–slope model in FAO-29 is **Maas & Hoffman (1977)**, so that is what Yield AI implements
 > and cites.
@@ -261,12 +344,16 @@ signals set in `lib/agronomy-tables.ts`. Replace them with your own market data.
 ## Project layout
 
 ```text
-app/                    routes: landing, (auth) login/signup, dashboard, dashboard/farm/[id], api/*
+app/                    routes: landing, (auth) login/signup, dashboard, dashboard/farm/[id](/sensors),
+                        dashboard/farms/new, dashboard/land, api/*
 components/dashboard/   map (Leaflet + IDW raster), charts (Recharts), AI panel, chat, timeline
 components/landing/     the three landing-page demo widgets (built on the dashboard components)
 lib/agronomy*.ts        FAO-56 / FAO-29 formulas and cited tables
 lib/ai/                 contract.ts (all AI formats), chat context, AI-service / LLM / offline answers
 lib/data/               demo data generator, Supabase source, daily aggregation, insights, live mode
+lib/farms/              users' farms and sensors (local JSON or Supabase), access scope, field shapes
+lib/land/               the 10 km² land atlas: grid, climate, soils, groundwater, crops, research (RAG)
+lib/weather/            WeatherAPI.com and Open-Meteo clients, 7-day forecast merge and interpolation
 supabase/migrations/    database schema and row-level security
 scripts/                seed and preview scripts
 e2e/                    Playwright tests
@@ -276,7 +363,9 @@ Stack: Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui, react-lea
 Supabase, Zod, the Anthropic SDK, Vitest and Playwright.
 
 Map tiles: © Esri, Maxar, Earthstar Geographics (satellite) and © OpenStreetMap contributors, © CARTO
-(streets). Weather: [Open-Meteo](https://open-meteo.com).
+(streets). Weather: [WeatherAPI.com](https://www.weatherapi.com) and [Open-Meteo](https://open-meteo.com).
+Place search: [OpenStreetMap Nominatim](https://nominatim.org). Boundaries: [geoBoundaries](https://www.geoboundaries.org)
+(CC BY 4.0).
 
 ## License
 

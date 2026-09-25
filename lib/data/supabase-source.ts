@@ -111,20 +111,25 @@ function fail(what: string, error: { message: string } | null): never {
   throw new Error(`${what}: ${error?.message ?? "unknown error"}`);
 }
 
+/**
+ * The shared demo farms (`owner_id` is null; migration 0002). Before that migration there is no
+ * owner column, so every farm is a demo farm.
+ */
 export async function fetchFarms(client: SupabaseClient): Promise<Farm[]> {
-  const { data, error } = await client.from("farms").select("*").order("name");
+  let { data, error } = await client.from("farms").select("*").is("owner_id", null).order("name");
+  if (error?.code === "42703") ({ data, error } = await client.from("farms").select("*").order("name"));
   if (error) fail("farms", error);
   return (data ?? []).map(parseFarmRow).filter((f): f is Farm => f !== null);
 }
 
 /** Daily per-probe aggregates from the `sensor_daily` view, paged past PostgREST's row limit. */
-export async function fetchDaily(client: SupabaseClient, fromDay: string): Promise<SensorDaily[]> {
+export async function fetchDaily(client: SupabaseClient, fromDay: string, farmIds?: string[]): Promise<SensorDaily[]> {
   const rows: SensorDaily[] = [];
+  if (farmIds && farmIds.length === 0) return rows;
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await client
-      .from("sensor_daily")
-      .select("*")
-      .gte("day", fromDay)
+    let query = client.from("sensor_daily").select("*").gte("day", fromDay);
+    if (farmIds) query = query.in("farm_id", farmIds);
+    const { data, error } = await query
       .order("day")
       .order("farm_id")
       .order("sensor_id")
@@ -136,27 +141,34 @@ export async function fetchDaily(client: SupabaseClient, fromDay: string): Promi
   return rows;
 }
 
-export async function fetchInsights(client: SupabaseClient): Promise<AiInsight[]> {
-  const { data, error } = await client.from("ai_insights").select("*").order("created_at", { ascending: false }).limit(500);
+export async function fetchInsights(client: SupabaseClient, farmIds?: string[]): Promise<AiInsight[]> {
+  if (farmIds && farmIds.length === 0) return [];
+  let query = client.from("ai_insights").select("*");
+  if (farmIds) query = query.in("farm_id", farmIds);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(500);
   if (error) fail("ai_insights", error);
   return (data ?? []).map(parseInsight).filter((i): i is AiInsight => i !== null);
 }
 
-export async function fetchReadingsSince(client: SupabaseClient, afterId: number, limit = 500) {
+export async function fetchReadingsSince(client: SupabaseClient, afterId: number, farmIds: string[], limit = 500) {
+  if (farmIds.length === 0) return [];
   const { data, error } = await client
     .from("sensor_readings")
     .select("*")
     .gt("id", afterId)
+    .in("farm_id", farmIds)
     .order("id", { ascending: true })
     .limit(limit);
   if (error) fail("sensor_readings", error);
   return (data ?? []).map((r) => toReading(r as Record<string, unknown>));
 }
 
-export async function fetchLatestReading(client: SupabaseClient) {
+export async function fetchLatestReading(client: SupabaseClient, farmIds: string[]) {
+  if (farmIds.length === 0) return null;
   const { data, error } = await client
     .from("sensor_readings")
     .select("id, timestamp")
+    .in("farm_id", farmIds)
     .order("id", { ascending: false })
     .limit(1);
   if (error) fail("sensor_readings", error);

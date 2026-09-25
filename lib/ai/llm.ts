@@ -17,6 +17,10 @@ const FORMAT_RULES = [
   "Use short paragraphs, **bold** for the key figure, and a numbered list for actions.",
   "Use only the data in the farm context below. If something is not in it, say you don't have that reading.",
   "The derived values follow FAO-56 (evapotranspiration, water balance) and FAO-29 (salinity, leaching); ECe is estimated from probe bulk EC.",
+  "`land` is the 10 km² land-atlas cell under the farm (soil, fertility, long-term climate, groundwater, crop suitability) — a modelled planning guide, so prefer the farm's own probe readings where they disagree.",
+  "`weather` is real-time data and the 7-day forecast; use it for questions about the coming days (heat, wind, humidity, rain, irrigation timing).",
+  "`knowledge` holds research passages retrieved for this question; cite a source briefly (author, year) when you use one.",
+  "If `has_readings` is false the probes have not reported yet: say so, and answer from the land, weather and research context.",
 ].join("\n");
 
 let client: Anthropic | null = null;

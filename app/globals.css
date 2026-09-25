@@ -375,6 +375,42 @@
   animation: yai-flash 1.8s ease-out;
 }
 
+/* Dropped pin (add a farm / place a sensor) */
+.yai-drop-pin {
+  position: relative;
+  width: 32px;
+  height: 42px;
+  filter: drop-shadow(0 2px 3px oklch(0 0 0 / 0.4));
+  cursor: grab;
+}
+.yai-drop-pin svg {
+  display: block;
+}
+.yai-drop-pin-label {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: oklch(0.26 0.05 162 / 0.92);
+  color: #fff;
+  font: 600 11.5px/1.5 var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+}
+.leaflet-tooltip.yai-sensor-tip {
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: oklch(0.26 0.05 162 / 0.9);
+  color: #fff;
+  font: 600 11px/1.5 var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  box-shadow: none;
+}
+.leaflet-tooltip.yai-sensor-tip::before {
+  display: none;
+}
+
 @keyframes yai-blink {
   0%,
   100% {

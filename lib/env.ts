@@ -27,6 +27,8 @@ export const env = {
   anthropicApiKey: read("ANTHROPIC_API_KEY"),
   anthropicModel: read("ANTHROPIC_MODEL") ?? "claude-opus-5",
   ingestApiKey: read("INGEST_API_KEY"),
+  /** WeatherAPI.com key for real-time conditions and forecasts (Open-Meteo fills in without it). */
+  weatherApiKey: read("WEATHERAPI_KEY") ?? read("WEATHER_API_KEY"),
   /** Live mode feed: "auto" simulates probe readings when no real ones are arriving. */
   liveSimulation: (read("LIVE_SIMULATION") ?? "auto") as "auto" | "on" | "off",
 };

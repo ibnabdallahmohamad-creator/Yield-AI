@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Crosshair, MapIcon, SatelliteIcon } from "lucide-react";
+import { ArrowLeft, Crosshair, MapIcon, Radar, SatelliteIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { askAgronomist } from "@/components/dashboard/ask";
@@ -19,6 +19,8 @@ import { RiskBadge } from "@/components/dashboard/risk-badge";
 import { ScrollFade } from "@/components/dashboard/scroll-fade";
 import { Segmented } from "@/components/dashboard/segmented";
 import { Timeline } from "@/components/dashboard/timeline";
+import { LandProfileLoader } from "@/components/land/land-profile-loader";
+import { WeatherCard } from "@/components/weather/weather-card";
 import { Button } from "@/components/ui/button";
 import { lastDataIndex } from "@/lib/ai/analysis";
 import { farmFacts, farmValueAt, probeSamples, suggestedQuestions } from "@/lib/dashboard";
@@ -89,11 +91,13 @@ export function FarmDetail({
   data,
   bundle,
   user,
+  canEdit = false,
   initialMetric,
 }: {
   data: DashboardData;
   bundle: FarmBundle;
   user: DashboardUser;
+  canEdit?: boolean;
   initialMetric?: MetricKey;
 }) {
   const { dates } = data;
@@ -102,7 +106,10 @@ export function FarmDetail({
 
   const [metricKey, setMetricKey] = useState<MetricKey>(initialMetric ?? "ece");
   const [basemap, setBasemap] = useState<Basemap>("satellite");
-  const [dateIndex, setDateIndex] = useState(() => Math.max(0, lastDataIndex(bundle)));
+  const [dateIndex, setDateIndex] = useState(() => {
+    const latest = lastDataIndex(bundle);
+    return latest >= 0 ? latest : last;
+  });
   const [trendRange, setTrendRange] = useState<TrendRange>(30);
   const [focusSignal, setFocusSignal] = useState(0);
   const [chatActive, setChatActive] = useState(false);
@@ -144,6 +151,7 @@ export function FarmDetail({
         source={data.source}
         sourceFallback={Boolean(data.sourceNote)}
         weatherOffline={data.weather.source === "unavailable"}
+        canEdit={canEdit}
         title="Farm details"
       />
 
@@ -158,6 +166,11 @@ export function FarmDetail({
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <h1 className="font-display text-[28px] leading-tight font-semibold tracking-tight">{farm.name}</h1>
               {insight ? <RiskBadge level={insight.risk_level} score={Math.round(insight.risk_score)} /> : null}
+              <Button asChild variant="outline" size="sm" className="ml-auto">
+                <Link href={`/dashboard/farm/${encodeURIComponent(farm.id)}/sensors`}>
+                  <Radar /> {canEdit ? "Manage sensors" : "Sensors"}
+                </Link>
+              </Button>
             </div>
             <p className="mt-1 text-[13px] text-muted-foreground">{farmFacts(bundle, day)}</p>
           </div>
@@ -227,6 +240,10 @@ export function FarmDetail({
           </section>
 
           <KpiTiles bundle={bundle} day={day} />
+
+          <WeatherCard farmId={farm.id} />
+
+          <LandProfileLoader lat={farm.lat} lng={farm.lng} />
 
           {/* Every layer over time */}
           <section aria-labelledby="trends-heading" className="rounded-2xl border bg-card p-3 shadow-xs sm:p-4">

@@ -1,7 +1,8 @@
 "use client";
 
-import { CloudOff, Database, House, LogOut, Menu, Radio } from "lucide-react";
+import { CloudOff, Database, House, LogOut, Map as MapIcon, Menu, Plus, Radio, Tractor } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useId, useTransition } from "react";
 import { signOutAction } from "@/app/(auth)/actions";
 import { Logo } from "@/components/brand/logo";
@@ -29,13 +30,15 @@ export interface LiveEvent {
 }
 
 function SourceBadge({ source, fallback }: { source: DataSource; fallback: boolean }) {
-  const label = source === "supabase" ? "Supabase" : fallback ? "Demo data · offline" : "Demo data";
+  const label = source === "supabase" ? "Supabase" : source === "local" ? "Your farms" : fallback ? "Demo data · offline" : "Demo data";
   const text =
     source === "supabase"
       ? "Live data from the Supabase database."
-      : fallback
-        ? "Supabase can't be reached right now, so the built-in demo dataset is shown. Everything keeps working."
-        : "Built-in demo dataset: 8 farms in northern Qatar with 60 days of probe readings. Connect Supabase to use your own.";
+      : source === "local"
+        ? "Your farms are stored on this server (local mode). Connect Supabase to keep them durably."
+        : fallback
+          ? "Supabase can't be reached right now, so the built-in demo dataset is shown. Everything keeps working."
+          : "Built-in demo dataset: 8 farms in northern Qatar with 60 days of probe readings. Create your own account to add your farms.";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -43,7 +46,7 @@ function SourceBadge({ source, fallback }: { source: DataSource; fallback: boole
           tabIndex={0}
           className={cn(
             "inline-flex h-6 cursor-default items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold whitespace-nowrap ring-1 ring-inset focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-            source === "supabase" && "bg-risk-low-soft text-risk-low-ink ring-risk-low/25",
+            (source === "supabase" || source === "local") && "bg-risk-low-soft text-risk-low-ink ring-risk-low/25",
             source === "mock" && !fallback && "bg-sand-200 text-foreground/75 ring-black/5",
             source === "mock" && fallback && "bg-risk-medium-soft text-risk-medium-ink ring-risk-medium/40",
           )}
@@ -119,7 +122,37 @@ function LiveControl({
   );
 }
 
-function UserMenu({ user }: { user: { name: string; email: string } }) {
+const NAV = [
+  { href: "/dashboard", label: "Farms", icon: Tractor },
+  { href: "/dashboard/land", label: "Land atlas", icon: MapIcon },
+];
+
+function Nav() {
+  const pathname = usePathname();
+  return (
+    <nav aria-label="Main" className="hidden items-center gap-0.5 md:flex">
+      {NAV.map(({ href, label, icon: Icon }) => {
+        const active = href === "/dashboard" ? pathname === "/dashboard" || pathname.startsWith("/dashboard/farm") : pathname.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
+              active && "bg-muted text-foreground",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden="true" />
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function UserMenu({ user, canEdit }: { user: { name: string; email: string }; canEdit: boolean }) {
   const [pending, startTransition] = useTransition();
   return (
     <DropdownMenu>
@@ -137,6 +170,24 @@ function UserMenu({ user }: { user: { name: string; email: string } }) {
           <span className="block truncate text-sm font-semibold">{user.name}</span>
           <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard">
+            <Tractor /> Farms
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/land">
+            <MapIcon /> Land atlas
+          </Link>
+        </DropdownMenuItem>
+        {canEdit ? (
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard/farms/new">
+              <Plus /> Add a farm
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/">
@@ -160,8 +211,9 @@ function UserMenu({ user }: { user: { name: string; email: string } }) {
 export function DashboardHeader({
   user,
   source,
-  sourceFallback,
-  weatherOffline,
+  sourceFallback = false,
+  weatherOffline = false,
+  canEdit = false,
   title = "Farm dashboard",
   live = false,
   onLiveChange,
@@ -171,9 +223,12 @@ export function DashboardHeader({
   className,
 }: {
   user: { name: string; email: string };
-  source: DataSource;
-  sourceFallback: boolean;
-  weatherOffline: boolean;
+  /** Omit on pages that show no farm data (e.g. the land atlas). */
+  source?: DataSource;
+  sourceFallback?: boolean;
+  weatherOffline?: boolean;
+  /** The account can add farms (not the read-only demo account). */
+  canEdit?: boolean;
   title?: string;
   live?: boolean;
   /** Omit to hide the live-mode switch. */
@@ -195,9 +250,10 @@ export function DashboardHeader({
         <Logo markClassName="size-7" />
       </Link>
       <span className="hidden h-5 w-px bg-border md:block" aria-hidden="true" />
-      <p className="hidden text-[14px] font-semibold text-muted-foreground md:block">{title}</p>
-      <div className="hidden items-center gap-2 sm:flex">
-        <SourceBadge source={source} fallback={sourceFallback} />
+      <p className="sr-only">{title}</p>
+      <Nav />
+      <div className="hidden items-center gap-2 lg:flex">
+        {source ? <SourceBadge source={source} fallback={sourceFallback} /> : null}
         {weatherOffline ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -216,7 +272,14 @@ export function DashboardHeader({
       </div>
       <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
         {onLiveChange ? <LiveControl live={live} onLiveChange={onLiveChange} status={liveStatus} lastEvent={lastEvent} /> : null}
-        <UserMenu user={user} />
+        {canEdit ? (
+          <Button asChild size="sm" className="hidden sm:inline-flex">
+            <Link href="/dashboard/farms/new">
+              <Plus /> Add farm
+            </Link>
+          </Button>
+        ) : null}
+        <UserMenu user={user} canEdit={canEdit} />
       </div>
     </header>
   );
