@@ -72,6 +72,9 @@ With no sensor enabled, it sends test values.
 
 Serial monitor at 115200 baud shows `[pair]`, `[send]` and `[sensor]` lines.
 
+Not sure the Wi-Fi works? Flash [`../wifi-test`](../wifi-test) first: it checks the network, the
+password, DNS and the server one step at a time and says which one fails.
+
 ## Without hardware
 
 `npm run device:sim -- --code K8A3-BNSQ` (from the project root) is a simulated probe speaking the same
