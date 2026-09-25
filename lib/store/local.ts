@@ -14,11 +14,13 @@ import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises
 import path from "node:path";
 import type { AiInsight } from "../ai/contract";
 import { aggregateDaily } from "../data/aggregate";
+import { hashDeviceKey } from "../device-keys";
 import { bucketReadings, type SeriesRow } from "../data/series";
 import { qatarDateString } from "../data/time";
 import type { Device, Farm, SensorDaily, SensorReading, UserSettings } from "../types";
 import {
   DEFAULT_SETTINGS,
+  type AuthenticatedDevice,
   type CachedValue,
   type DataStore,
   type DeviceContact,
@@ -337,6 +339,17 @@ export class LocalStore implements DataStore {
     if (state.devices.length === before) return false;
     await this.saveState(state);
     return true;
+  }
+
+  async authenticateDevice(key: string): Promise<AuthenticatedDevice | null> {
+    const device = await this.findDeviceByTokenHash(hashDeviceKey(key));
+    return device ? { device, settings: await this.getSettings(device.owner_id) } : null;
+  }
+
+  async saveDeviceReport(_key: string, deviceId: string, readings: SensorReading[], contact: DeviceContact): Promise<number> {
+    const stored = readings.length > 0 ? await this.insertReadings(readings) : 0;
+    await this.recordDeviceContact(deviceId, contact);
+    return stored;
   }
 
   async findDeviceByTokenHash(tokenHash: string): Promise<Device | null> {

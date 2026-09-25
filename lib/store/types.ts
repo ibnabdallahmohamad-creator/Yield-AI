@@ -51,6 +51,11 @@ export interface DeviceContact {
   reading: DeviceSnapshot | null;
 }
 
+export interface AuthenticatedDevice {
+  device: Device;
+  settings: UserSettings;
+}
+
 export interface CachedValue {
   fetched_at: string;
   payload: unknown;
@@ -74,9 +79,13 @@ export interface DataStore {
   updateDevice(ownerId: string, deviceId: string, patch: DevicePatch): Promise<Device | null>;
   setDeviceToken(ownerId: string, deviceId: string, tokenHash: string, tokenHint: string): Promise<Device | null>;
   deleteDevice(ownerId: string, deviceId: string): Promise<boolean>;
-  /** Device authentication: look a device up by the SHA-256 of its key (any owner). */
-  findDeviceByTokenHash(tokenHash: string): Promise<Device | null>;
-  recordDeviceContact(deviceId: string, contact: DeviceContact): Promise<void>;
+  /** Device authentication: the device (any owner) this key belongs to, with its owner's settings. */
+  authenticateDevice(key: string): Promise<AuthenticatedDevice | null>;
+  /**
+   * Stores a device's readings (skipping duplicates of farm, probe and timestamp) and records the
+   * contact. `key` authenticates the write again. Returns how many readings were new.
+   */
+  saveDeviceReport(key: string, deviceId: string, readings: SensorReading[], contact: DeviceContact): Promise<number>;
 
   /** Stores readings, skipping duplicates of (farm, probe, timestamp). Returns how many were new. */
   insertReadings(readings: SensorReading[]): Promise<number>;

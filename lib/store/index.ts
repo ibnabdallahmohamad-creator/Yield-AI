@@ -33,10 +33,5 @@ export function sharedStore(): DataStore {
   return env.localData || !env.supabaseServiceRoleKey ? localStore() : supabase();
 }
 
-/** Device ingest into Supabase needs the service role key. */
-export function deviceIngestAvailable(store: DataStore): boolean {
-  return store.kind === "local" || Boolean(env.supabaseServiceRoleKey);
-}
-
 export type { DataStore } from "./types";
 export { DEFAULT_SETTINGS, READING_INTERVALS_S, StoreError } from "./types";

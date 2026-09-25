@@ -1,6 +1,7 @@
 -- Yield AI — database schema
 -- Apply with the Supabase CLI (`npx supabase db push`) or paste into the SQL editor,
--- then apply 0002_accounts_devices.sql (accounts own their farms; ESP32 devices; settings).
+-- then apply 0002_accounts_devices.sql (accounts own their farms; ESP32 devices; settings)
+-- and 0003_device_ingest.sql (ESP32 ingest with the publishable key).
 
 -- ---------------------------------------------------------------------------
 -- Farms

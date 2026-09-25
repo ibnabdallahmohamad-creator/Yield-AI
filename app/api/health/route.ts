@@ -12,7 +12,8 @@ export async function GET() {
       ok: true,
       accounts_data: env.localData ? "local (.data/)" : "supabase",
       auth: env.supabaseConfigured ? "supabase (+ local fallback)" : "local accounts",
-      device_ingest: env.localData || Boolean(env.supabaseServiceRoleKey),
+      // ESP32s post with their own keys, into whichever store holds accounts' data.
+      device_ingest: env.localData ? "local (.data/)" : "supabase",
       bulk_ingest: Boolean(env.ingestApiKey),
       demo: { farms: demo.farms.length, days: demo.dates.length, latest: demo.dates.at(-1) },
       weather: demo.weather,

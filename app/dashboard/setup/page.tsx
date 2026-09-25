@@ -8,7 +8,7 @@ import { SetupPage } from "@/components/setup/setup-page";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { getViewerSettings } from "@/lib/data/repository";
-import { deviceIngestAvailable, storeFor } from "@/lib/store";
+import { storeFor } from "@/lib/store";
 
 export const metadata: Metadata = { title: "Farms & devices" };
 
@@ -68,7 +68,6 @@ export default async function FarmsAndDevicesPage() {
       devices={devices}
       settings={settings}
       serverUrl={origin}
-      ingestAvailable={deviceIngestAvailable(store)}
     />
   );
 }

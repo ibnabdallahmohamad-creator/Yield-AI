@@ -81,7 +81,7 @@ Copy `.env.example` to `.env.local`. Every variable is optional.
 | --- | --- |
 | `SUPABASE_URL` | Supabase project URL. Without it (or the anon key), accounts and their data use the local store. |
 | `SUPABASE_ANON_KEY` | Supabase anon (publishable) key, used for sign-in. `NEXT_PUBLIC_SUPABASE_*` names are also accepted. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only. **Needed for ESP32 readings into Supabase** (devices aren't signed-in users) and the shared weather cache; also used for reads after the app's own sign-in check. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only, optional. Creates new accounts already confirmed (no confirmation email), shares the weather cache between server instances, enables `INGEST_API_KEY` bulk import into Supabase and is used for reads after the app's own sign-in check. ESP32s don't need it. |
 | `USE_MOCK` | `true` keeps accounts' data in the local store even when Supabase is configured (sign-in can still use Supabase). |
 | `LOCAL_DATA_DIR` | Folder of the local store and local accounts (default `.data`). |
 | `AI_SERVICE_URL` | The team's fine-tuned model endpoint, the first stop for chat answers and the farm analysis (format below). |
@@ -102,17 +102,23 @@ the demo dataset.
 ## Supabase setup
 
 1. Create a Supabase project and apply the migrations in order —
-   `supabase/migrations/0001_init.sql`, then `0002_accounts_devices.sql` — with `npx supabase db push`
-   or by pasting them into the SQL editor. Together they create:
+   `supabase/migrations/0001_init.sql`, `0002_accounts_devices.sql`, then `0003_device_ingest.sql` —
+   with `npx supabase db push` or by pasting them into the SQL editor. Together they create:
    - `farms` (each owned by an account), `sensor_readings`, `ai_insights`, `devices` (ESP32s, with the
      SHA-256 of their key), `user_settings` (reading interval) and `app_cache` (weather forecast);
    - the `sensor_daily` view (daily means per probe, Asia/Qatar days) and the `readings_series`
      function (the readings explorer's time buckets);
+   - `device_for_key` and `device_report`: an ESP32's way in. It is not a signed-in user, so these
+     take its key, hash it in the database and only ever touch that device's own farm and probe;
    - row-level security: every account reads and writes only its own rows.
 
    `0002` also deletes the 8 demo farms an earlier `npm run seed` loaded — demo data now lives only in
-   the app, for the demo account.
-2. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
+   the app, for the demo account. Re-running `0001` after `0002` re-creates its "every signed-in user
+   can read" policies; re-run `0002` afterwards to remove them again.
+2. Put `SUPABASE_URL` and `SUPABASE_ANON_KEY` (the publishable key) in `.env.local`. That is all the app
+   needs; `SUPABASE_SERVICE_ROLE_KEY` is optional (see the table above).
+3. Without the service role key, new accounts confirm their email before signing in: set
+   Authentication → URL Configuration → **Site URL** to the app's address so the link lands there.
 
 If Supabase can't be reached, the dashboard says so and offers a retry — it never swaps in demo data.
 

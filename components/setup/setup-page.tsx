@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Cpu, LayoutDashboard, Loader2, MapPinned, Pencil, Plus, Radio, Sprout, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, Check, Cpu, LayoutDashboard, Loader2, MapPinned, Pencil, Plus, Radio, Sprout, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useEffectEvent, useState, useTransition } from "react";
@@ -66,7 +66,6 @@ export function SetupPage({
   devices: serverDevices,
   settings,
   serverUrl,
-  ingestAvailable,
 }: {
   user: HeaderUser;
   source: DataSource;
@@ -74,8 +73,6 @@ export function SetupPage({
   devices: Device[];
   settings: UserSettings;
   serverUrl: string;
-  /** False when Supabase is used without the service role key (devices could not post). */
-  ingestAvailable: boolean;
 }) {
   const router = useRouter();
   const [devices, setDevices] = useState(serverDevices);
@@ -170,13 +167,6 @@ export function SetupPage({
             </Button>
           ) : null}
         </div>
-
-        {!ingestAvailable ? (
-          <p role="alert" className="flex items-start gap-2 rounded-xl border border-risk-medium/40 bg-risk-medium-soft px-3.5 py-2.5 text-[13px] text-risk-medium-ink">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            Devices can&apos;t post readings yet: the server needs SUPABASE_SERVICE_ROLE_KEY to accept them into Supabase.
-          </p>
-        ) : null}
 
         {firstRun ? (
           <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Getting started">

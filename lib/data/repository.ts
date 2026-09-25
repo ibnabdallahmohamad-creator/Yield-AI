@@ -7,7 +7,6 @@
  */
 import "server-only";
 import { env } from "../env";
-import { hashDeviceKey } from "../device-keys";
 import { storeFor, deviceStores, type DataStore } from "../store";
 import { DEFAULT_SETTINGS } from "../store/types";
 import type { DashboardData, Device, Farm, FarmBundle, LiveReading, LiveUpdate, Sensor, SensorReading, UserSettings } from "../types";
@@ -337,13 +336,12 @@ export class IngestError extends Error {
   }
 }
 
-async function findDevice(key: string): Promise<{ device: Device; store: DataStore } | null> {
-  const hash = hashDeviceKey(key);
+async function findDevice(key: string): Promise<{ device: Device; settings: UserSettings; store: DataStore } | null> {
   let lastError: unknown = null;
   for (const store of deviceStores()) {
     try {
-      const device = await store.findDeviceByTokenHash(hash);
-      if (device) return { device, store };
+      const found = await store.authenticateDevice(key);
+      if (found) return { ...found, store };
     } catch (error) {
       lastError = error;
     }
@@ -363,9 +361,8 @@ export interface DeviceIngestResult {
 export async function ingestFromDevice(key: string, payload: DevicePayload, ip: string | null): Promise<DeviceIngestResult> {
   const found = await findDevice(key);
   if (!found) throw new IngestError("Unknown device key. Copy it again from Farms & devices, or rotate it.", 401);
-  const { device, store } = found;
+  const { device, settings, store } = found;
 
-  const settings = await store.getSettings(device.owner_id).catch(() => DEFAULT_SETTINGS);
   const now = Date.now();
   const gaps = (globalCache.__yieldDeviceGap ??= new Map());
   const last = gaps.get(device.id);
@@ -377,8 +374,7 @@ export async function ingestFromDevice(key: string, payload: DevicePayload, ip: 
   const { readings, skipped, latest } = deviceReadings(payload, device, new Date(now));
   let stored = 0;
   try {
-    if (readings.length > 0) stored = await store.insertReadings(readings);
-    await store.recordDeviceContact(device.id, {
+    stored = await store.saveDeviceReport(key, device.id, readings, {
       at: new Date(now).toISOString(),
       ip,
       rssi: payload.rssi ?? null,

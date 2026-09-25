@@ -5,7 +5,8 @@
  *
  * Reads and writes use the service role when SUPABASE_SERVICE_ROLE_KEY is set (after the app's
  * own sign-in check, and always filtered by owner), otherwise the signed-in user's session with
- * row-level security. Device ingest and the shared cache need the service role.
+ * row-level security. ESP32s go through key-checked database functions, so they need neither.
+ * Only the bulk INGEST_API_KEY import and the shared weather cache need the service role.
  */
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -14,11 +15,12 @@ import { CROP_IDS } from "../agronomy-tables";
 import { parseInsight, type AiInsight } from "../ai/contract";
 import { SERIES_FIELDS, type SeriesRow } from "../data/series";
 import { qatarLocalToUtc, addDays } from "../data/time";
-import { createSupabaseAdminClient, createSupabaseDataClient, withTimeout } from "../supabase/server";
+import { createSupabaseAdminClient, createSupabaseAnonClient, createSupabaseDataClient, withTimeout } from "../supabase/server";
 import type { Device, DeviceSnapshot, Farm, SensorDaily, SensorReading, UserSettings } from "../types";
 import {
   DEFAULT_SETTINGS,
   StoreError,
+  type AuthenticatedDevice,
   type CachedValue,
   type DataStore,
   type DeviceContact,
@@ -175,6 +177,22 @@ export function toDevice(row: Record<string, unknown>): Device {
   };
 }
 
+/** A reading as device_report() takes it: the measurement only (farm and probe come from the key). */
+function deviceReportReading(r: SensorReading) {
+  return {
+    timestamp: r.timestamp,
+    moisture: r.moisture,
+    temperature: r.temperature,
+    ec: r.ec,
+    ph: r.ph,
+    n: r.n,
+    p: r.p,
+    k: r.k,
+    air_temp: r.air_temp ?? null,
+    air_humidity: r.air_humidity ?? null,
+  };
+}
+
 const DEVICE_COLUMNS =
   "id, owner_id, farm_id, name, sensor_id, lat, lng, token_hint, created_at, last_seen_at, last_reading_at, last_ip, rssi, firmware, last_error, last_reading";
 
@@ -308,27 +326,42 @@ export class SupabaseStore implements DataStore {
     return (data ?? []).length > 0;
   }
 
-  async findDeviceByTokenHash(tokenHash: string): Promise<Device | null> {
-    const admin = this.admin("Device ingest");
-    const { data, error } = await timed(
-      admin.from("devices").select(DEVICE_COLUMNS).eq("token_hash", tokenHash).maybeSingle(),
-      "device lookup",
-    );
-    if (error) fail("device lookup", error);
-    return data ? toDevice(data as Record<string, unknown>) : null;
+  /**
+   * ESP32 requests carry no user session, so devices go through the key-checked functions in
+   * 0003_device_ingest.sql. They work with the publishable key alone; the service role is used
+   * when it is configured anyway.
+   */
+  private deviceClient(): SupabaseClient {
+    const client = createSupabaseAdminClient() ?? createSupabaseAnonClient();
+    if (!client) throw new StoreError("Supabase is not configured");
+    return client;
   }
 
-  async recordDeviceContact(deviceId: string, contact: DeviceContact): Promise<void> {
-    const admin = this.admin("Device ingest");
-    const patch: Record<string, unknown> = { last_seen_at: contact.at, last_ip: contact.ip, last_error: contact.error };
-    if (contact.rssi != null) patch.rssi = Math.round(contact.rssi);
-    if (contact.firmware) patch.firmware = contact.firmware;
-    if (contact.reading) {
-      patch.last_reading_at = contact.reading.timestamp;
-      patch.last_reading = contact.reading;
-    }
-    const { error } = await timed(admin.from("devices").update(patch).eq("id", deviceId), "device contact");
-    if (error) fail("device contact", error);
+  async authenticateDevice(key: string): Promise<AuthenticatedDevice | null> {
+    const { data, error } = await timed(
+      this.deviceClient().rpc("device_for_key", { p_key: key.trim() }).maybeSingle(),
+      "device lookup",
+    );
+    // PGRST202: the function does not exist yet.
+    if (error) fail(error.code === "PGRST202" ? "device lookup (apply supabase/migrations/0003_device_ingest.sql)" : "device lookup", error);
+    if (!data) return null;
+    const row = data as Record<string, unknown>;
+    const interval = toNum(row.reading_interval_s);
+    return { device: toDevice(row), settings: { ...DEFAULT_SETTINGS, ...(interval ? { reading_interval_s: interval } : {}) } };
+  }
+
+  /** The database stores the readings under the key's own device and derives last_seen/last_reading itself. */
+  async saveDeviceReport(key: string, _deviceId: string, readings: SensorReading[], contact: DeviceContact): Promise<number> {
+    const { data, error } = await timed(
+      this.deviceClient().rpc("device_report", {
+        p_key: key.trim(),
+        p_readings: readings.map(deviceReportReading),
+        p_contact: { ip: contact.ip, rssi: contact.rssi, firmware: contact.firmware, error: contact.error },
+      }),
+      "store readings",
+    );
+    if (error) fail("store readings", error);
+    return toNum(data) ?? 0;
   }
 
   // ---------------------------------------------------------------------------

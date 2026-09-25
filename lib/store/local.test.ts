@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hashDeviceKey } from "../device-keys";
 import type { Device, Farm, SensorReading } from "../types";
 import { LocalStore } from "./local";
 
@@ -92,6 +93,27 @@ describe("LocalStore", () => {
     expect(await store.listDevices("alice")).toEqual([expect.not.objectContaining({ token_hash: expect.anything() })]);
     expect((await store.findDeviceByTokenHash("hash-a"))?.id).toBe("d1");
     expect(await store.findDeviceByTokenHash("nope")).toBeNull();
+  });
+
+  it("authenticates a device by its key and stores its report", async () => {
+    const store = new LocalStore(dir, () => NOW);
+    await store.insertFarm(farm("a", "alice"));
+    const key = "yai_local-test-key-0123456789";
+    await store.insertDevice(device("d1", "a", "alice"), hashDeviceKey(key));
+    await store.saveSettings("alice", { reading_interval_s: 30 });
+
+    const found = await store.authenticateDevice(key);
+    expect(found?.device.id).toBe("d1");
+    expect(found?.settings.reading_interval_s).toBe(30);
+    expect(await store.authenticateDevice("yai_wrong-key-0123456789")).toBeNull();
+
+    const contact = { at: new Date(NOW).toISOString(), ip: "10.0.0.7", rssi: -55, firmware: "1.2.0", error: null, reading: null };
+    expect(await store.saveDeviceReport(key, "d1", [reading("a", NOW - 5_000, 14)], contact)).toBe(1);
+    expect(await store.saveDeviceReport(key, "d1", [], { ...contact, error: "probe timeout" })).toBe(0); // heartbeat
+    const [d] = await store.listDevices("alice");
+    expect(d.last_ip).toBe("10.0.0.7");
+    expect(d.last_error).toBe("probe timeout");
+    expect(await store.maxReadingId(["a"])).toBe(1);
   });
 
   it("stores readings once, pages them by id and survives a restart", async () => {

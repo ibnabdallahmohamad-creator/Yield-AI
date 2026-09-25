@@ -36,6 +36,14 @@ export function createSupabaseAdminClient(): SupabaseClient | null {
   });
 }
 
+/** Client with no user session, for calls that carry their own credential (an ESP32's device key). */
+export function createSupabaseAnonClient(): SupabaseClient | null {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) return null;
+  return createClient(env.supabaseUrl, env.supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /** Client for data reads: service role when available, otherwise the user's session. */
 export async function createSupabaseDataClient(): Promise<SupabaseClient | null> {
   return createSupabaseAdminClient() ?? (await createSupabaseServerClient());
