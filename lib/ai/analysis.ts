@@ -1,7 +1,7 @@
 /**
  * Small, pure helpers that turn a farm's derived data into facts the AI layer talks about:
  * trends over a window, the most extreme probe and where it sits in the field, and which crop
- * best tolerates the current salinity. Shared by the seed insights, the chat context and the
+ * best tolerates the current salinity. Shared by the rule-engine insights, the chat context and the
  * offline responder so all three always quote the same numbers.
  */
 import { relativeYield_pct } from "../agronomy";

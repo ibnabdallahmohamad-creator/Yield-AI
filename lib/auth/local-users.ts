@@ -1,6 +1,6 @@
 /**
  * Local accounts: used when Supabase Auth is not configured or unreachable, so sign-in never
- * blocks the demo. Stored in `.data/users.json` (git-ignored) with scrypt password hashes;
+ * blocks the demo. Stored in `.data/users.json` (git-ignored, see LOCAL_DATA_DIR) with scrypt password hashes;
  * falls back to memory on read-only file systems. The demo account always exists.
  */
 import "server-only";
@@ -8,11 +8,11 @@ import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from "no
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { DEMO_ACCOUNT } from "../env";
+import { DEMO_ACCOUNT, env } from "../env";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 const KEY_LENGTH = 64;
-const STORE_FILE = path.join(process.cwd(), ".data", "users.json");
+const STORE_FILE = path.join(env.localDataDir, "users.json");
 
 export interface LocalUser {
   id: string;

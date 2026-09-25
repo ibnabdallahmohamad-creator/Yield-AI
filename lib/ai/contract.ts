@@ -12,6 +12,7 @@
  * The README documents the same shapes for the AI and hardware teammates.
  */
 import { z } from "zod";
+import type { AnswerSection } from "./sections";
 
 // ---------------------------------------------------------------------------
 // 1. Insights (ai_insights table)
@@ -59,6 +60,13 @@ export const AiInsightSchema = z.object({
   crop_suggestion: jsonish(CropSuggestionSchema.nullable()).catch(null),
 });
 export type AiInsight = z.infer<typeof AiInsightSchema>;
+
+/** Insights from the built-in rule engine (lib/data/insights.ts), not the AI model, carry this id prefix. */
+export const RULES_INSIGHT_PREFIX = "rules-";
+
+export function isRulesInsight(insight: Pick<AiInsight, "id">): boolean {
+  return insight.id.startsWith(RULES_INSIGHT_PREFIX);
+}
 
 /** Parse an ai_insights row; returns null (and never throws) when the row is unusable. */
 export function parseInsight(row: unknown): AiInsight | null {
@@ -119,6 +127,28 @@ export const AiServiceChatResponseSchema = z
 export type AiServiceChatResponse = z.infer<typeof AiServiceChatResponseSchema>;
 
 export type ChatAnswerSource = "ai-service" | "llm" | "offline";
+
+/**
+ * What the AI Insights tab asks the answer chain (GET /api/analysis). Whatever the model returns
+ * is split into sections by lib/ai/sections.ts — no second model call.
+ */
+export const ANALYSIS_QUESTION =
+  "Give a complete analysis of this farm right now, with a Markdown heading for each part: Summary, Diagnosis, Irrigation, " +
+  "Salinity, Nutrients & pH, Weather (next 12 hours), Risks, Recommended actions, What to monitor. Quote the farm's readings " +
+  "and derived values with units, and name the probes where it matters.";
+
+/** GET /api/analysis → browser. */
+export interface AnalysisResponse {
+  farm_id: string;
+  /** The day the analysis describes (YYYY-MM-DD). */
+  as_of: string;
+  answer: string;
+  /** The answer split into sections (lib/ai/sections.ts). */
+  sections: AnswerSection[];
+  source: ChatAnswerSource;
+  model: string | null;
+  created_at: string;
+}
 
 /** Our server → browser. */
 export interface ChatResponse {
@@ -206,4 +236,27 @@ export interface ChatContext {
   };
   latest_insight: Pick<AiInsight, "risk_score" | "risk_level" | "summary" | "recommendations" | "crop_suggestion"> | null;
   market: { oversupplied: string[]; undersupplied: string[]; crop_status: string };
+  /** The next 12 hours at the farm (Open-Meteo, refreshed every 12 h); null when unavailable. */
+  forecast_next_12h: ForecastContext | null;
+}
+
+export interface ForecastContext {
+  /** ISO hour starts (UTC) of the first and last forecast hour. */
+  from: string;
+  to: string;
+  conditions: string;
+  temperature_min_c: number | null;
+  temperature_max_c: number | null;
+  temperature_max_at: string | null;
+  humidity_min_pct: number | null;
+  humidity_max_pct: number | null;
+  rain_total_mm: number;
+  rain_chance_max_pct: number | null;
+  wind_mean_m_s: number | null;
+  /** Where the wind comes from, e.g. "NW". */
+  wind_from: string;
+  gust_max_m_s: number | null;
+  et0_total_mm: number;
+  /** Plain-language advisories (rain vs irrigation, heat, spray window, leaf wetness, crop water use). */
+  advisories: string[];
 }

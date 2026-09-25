@@ -17,7 +17,7 @@ beforeAll(() => {
     daily: aggregateDaily(ds.readings),
     weather: { byFarm: {}, source: "unavailable", note: null },
     insights: [],
-    source: "mock",
+    source: "demo",
     sourceNote: null,
     sensorsByFarm: ds.sensorsByFarm,
   });

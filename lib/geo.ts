@@ -132,3 +132,39 @@ export function distanceToBoundary_m(lng: number, lat: number, polygon: GeoPolyg
 export function toLatLngRing(polygon: GeoPolygon): [number, number][] {
   return outerRing(polygon).map(([lng, lat]) => [lat, lng]);
 }
+
+/** A closed GeoJSON polygon from an open list of vertices ([lng, lat]). */
+export function polygonFromVertices(vertices: LngLat[]): GeoPolygon {
+  const ring = vertices.map(([lng, lat]) => [lng, lat] as LngLat);
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first && last && (first[0] !== last[0] || first[1] !== last[1])) ring.push([first[0], first[1]]);
+  return { type: "Polygon", coordinates: [ring] };
+}
+
+function segmentsCross(a: [number, number], b: [number, number], c: [number, number], d: [number, number]): boolean {
+  const orient = (p: [number, number], q: [number, number], r: [number, number]) =>
+    Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  const o1 = orient(a, b, c);
+  const o2 = orient(a, b, d);
+  const o3 = orient(c, d, a);
+  const o4 = orient(c, d, b);
+  return o1 !== o2 && o3 !== o4 && o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0;
+}
+
+/** True when two non-adjacent edges of the outer ring cross (a "bow-tie" outline). */
+export function ringSelfIntersects(polygon: GeoPolygon): boolean {
+  const ring = outerRing(polygon);
+  const n = ring.length - 1; // closed ring: last point repeats the first
+  if (n < 4) return false;
+  const [refLng, refLat] = ring[0];
+  const proj = localProjector(refLat, refLng);
+  const pts = ring.map(([lng, lat]) => proj.toXY(lng, lat));
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue; // adjacent edges share a vertex
+      if (segmentsCross(pts[i], pts[i + 1], pts[j], pts[j + 1])) return true;
+    }
+  }
+  return false;
+}

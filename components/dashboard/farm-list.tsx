@@ -79,8 +79,9 @@ export function FarmList({
                     {farm.name}
                   </span>
                   <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                    {CROPS[farm.main_crop].name} · {farm.area_ha.toLocaleString("en-US", { maximumFractionDigits: 1 })} ha ·{" "}
-                    {farm.region}
+                    {[CROPS[farm.main_crop].name, `${farm.area_ha.toLocaleString("en-US", { maximumFractionDigits: farm.area_ha < 1 ? 2 : 1 })} ha`, farm.region]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                   <span className="mt-1.5 flex items-center gap-1.5 text-[12px]">
                     <span

@@ -20,7 +20,7 @@ async function main() {
     daily,
     weather,
     insights: [],
-    source: "mock",
+    source: "demo",
     sourceNote: null,
     sensorsByFarm: ds.sensorsByFarm,
   });

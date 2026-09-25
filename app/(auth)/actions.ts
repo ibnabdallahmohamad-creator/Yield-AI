@@ -120,7 +120,8 @@ export async function signUpAction(_prev: AuthFormState | undefined, formData: F
         }
         const signedIn = await supabaseSignIn(email, password);
         if (signedIn.ok) redirect(next);
-        throw new Error("Sign-in after sign-up failed");
+        // The Supabase account exists now: never create a second, local account for the same email.
+        return { notice: "Your account is ready. Sign in to continue.", values };
       }
       const supabase = await createSupabaseServerClient();
       if (supabase) {
@@ -171,4 +172,10 @@ export async function demoSignInAction(formData: FormData): Promise<void> {
 export async function signOutAction(): Promise<void> {
   await endSessions();
   redirect("/");
+}
+
+/** From the shared demo account to creating your own. */
+export async function switchToSignupAction(): Promise<void> {
+  await endSessions();
+  redirect("/signup");
 }

@@ -1,12 +1,33 @@
 "use client";
 
-import { ClipboardList, Crosshair, Layers, MapIcon, Maximize2, SatelliteIcon } from "lucide-react";
+import {
+  Activity,
+  ClipboardList,
+  CloudRain,
+  CloudSun,
+  Crosshair,
+  Droplets,
+  LayoutDashboard,
+  Layers,
+  MapIcon,
+  Maximize2,
+  RefreshCw,
+  SatelliteIcon,
+  Sparkles,
+  Thermometer,
+  Wind,
+  type LucideIcon,
+} from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Tabs } from "radix-ui";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { updateSettingsAction } from "@/app/dashboard/actions";
 import { askAgronomist } from "@/components/dashboard/ask";
 import { ChatPanel, type AskFn } from "@/components/dashboard/chat-panel";
-import { DashboardHeader, type LiveEvent } from "@/components/dashboard/dashboard-header";
+import { DashboardHeader, type HeaderUser, type LiveEvent } from "@/components/dashboard/dashboard-header";
+import { DeviceStrip } from "@/components/dashboard/device-strip";
 import { FarmList, type FarmListItem } from "@/components/dashboard/farm-list";
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { InsightPanel } from "@/components/dashboard/insight-panel";
@@ -17,6 +38,7 @@ import { MetricChart } from "@/components/dashboard/metric-chart";
 import { RiskBadge } from "@/components/dashboard/risk-badge";
 import { ScrollFade } from "@/components/dashboard/scroll-fade";
 import { Segmented } from "@/components/dashboard/segmented";
+import { DASHBOARD_TABS, TAB_LABEL, type DashboardTab } from "@/components/dashboard/tabs";
 import { Timeline } from "@/components/dashboard/timeline";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,8 +48,31 @@ import { lastDataIndex } from "@/lib/ai/analysis";
 import { farmFacts, farmValueAt, hasPreviousPeriod, probeSamples, rankFarms, suggestedQuestions, type ChartOverlay } from "@/lib/dashboard";
 import { formatShortDay } from "@/lib/format";
 import { computeDelta, METRICS, type MetricKey } from "@/lib/metrics";
-import type { DashboardData, FarmBundle, FarmDay, LiveUpdate } from "@/lib/types";
+import type { DashboardData, Device, FarmBundle, FarmDay, LiveUpdate, UserSettings } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+function TabLoading() {
+  return <div className="h-72 animate-pulse rounded-2xl border bg-card/60" aria-label="Loading" />;
+}
+
+// Heavier tabs load when first opened.
+const ReadingsExplorer = dynamic(() => import("@/components/dashboard/readings-explorer").then((m) => m.ReadingsExplorer), {
+  ssr: false,
+  loading: TabLoading,
+});
+const WeatherTab = dynamic(() => import("@/components/weather/weather-tab").then((m) => m.WeatherTab), { ssr: false, loading: TabLoading });
+const InsightsTab = dynamic(() => import("@/components/insights/insights-tab").then((m) => m.InsightsTab), { ssr: false, loading: TabLoading });
+
+const TAB_ICON: Record<DashboardTab, LucideIcon> = {
+  overview: LayoutDashboard,
+  readings: Activity,
+  weather: CloudSun,
+  temperature: Thermometer,
+  humidity: Droplets,
+  rain: CloudRain,
+  wind: Wind,
+  insights: Sparkles,
+};
 
 type RangeDays = 7 | 30 | 60;
 
@@ -36,10 +81,7 @@ type RangeDays = 7 | 30 | 60;
 const SINGLE_PADDING: MapPadding = { top: 72, right: 48, bottom: 40, left: 48 };
 const COMPARE_PADDING: MapPadding = { top: 100, right: 40, bottom: 36, left: 40 };
 
-export interface DashboardUser {
-  name: string;
-  email: string;
-}
+export type DashboardUser = HeaderUser;
 
 function mergeLive(data: DashboardData, liveDays: Record<string, { index: number; day: FarmDay }>): DashboardData {
   const ids = Object.keys(liveDays);
@@ -73,13 +115,17 @@ function MapChip({ children, className }: { children: React.ReactNode; className
 export function DashboardShell({
   data: serverData,
   user,
+  settings,
   initialFarmId,
   initialMetric,
+  initialTab,
 }: {
   data: DashboardData;
   user: DashboardUser;
+  settings: UserSettings;
   initialFarmId?: string;
   initialMetric?: MetricKey;
+  initialTab?: DashboardTab;
 }) {
   const router = useRouter();
 
@@ -95,10 +141,11 @@ export function DashboardShell({
   const last = dates.length - 1;
   const ranked = useMemo(() => rankFarms(data.farms), [data.farms]);
 
-  const latestWithData = useMemo(
-    () => Math.max(0, ...serverData.farms.map((b) => lastDataIndex(b))),
-    [serverData.farms],
-  );
+  // The latest day any farm has data for; today when nothing has reported yet.
+  const latestWithData = useMemo(() => {
+    const latest = Math.max(-1, ...serverData.farms.map((b) => lastDataIndex(b)));
+    return latest >= 0 ? latest : serverData.dates.length - 1;
+  }, [serverData.farms, serverData.dates.length]);
 
   const [farmId, setFarmId] = useState(() =>
     initialFarmId && serverData.farms.some((b) => b.farm.id === initialFarmId)
@@ -110,7 +157,18 @@ export function DashboardShell({
   const [compare, setCompare] = useState(false);
   const [thenIndex, setThenIndex] = useState(Math.max(0, latestWithData - 30));
   const [basemap, setBasemap] = useState<Basemap>("satellite");
-  const [live, setLive] = useState(false);
+  // Accounts watch their own ESP32s: live updates start on. The demo feed is opt-in.
+  const [live, setLive] = useState(!user.demo);
+  const [tab, setTab] = useState<DashboardTab>(initialTab ?? "overview");
+  const [intervalS, setIntervalS] = useState(settings.reading_interval_s);
+  const [savingInterval, startSavingInterval] = useTransition();
+  const [devices, setDevices] = useState<Device[]>(serverData.devices);
+  const [prevDevices, setPrevDevices] = useState(serverData.devices);
+  if (prevDevices !== serverData.devices) {
+    setPrevDevices(serverData.devices);
+    setDevices(serverData.devices);
+  }
+  const [readingsTick, setReadingsTick] = useState(0);
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
   const [overlayChoice, setOverlayChoice] = useState("none");
   const [fitAllSignal, setFitAllSignal] = useState(0);
@@ -128,17 +186,22 @@ export function DashboardShell({
   const mapIndex = useDeferredValue(dateIndex);
   const mapThenIndex = useDeferredValue(thenIndex);
 
-  // Keep the URL shareable: ?farm=…&layer=…
+  // Keep the URL shareable: ?farm=…&layer=…&tab=…
   useEffect(() => {
+    if (!farmId) return;
     const params = new URLSearchParams(window.location.search);
     params.set("farm", farmId);
     params.set("layer", metricKey);
+    if (tab === "overview") params.delete("tab");
+    else params.set("tab", tab);
     window.history.replaceState(null, "", `?${params.toString()}`);
-  }, [farmId, metricKey]);
+  }, [farmId, metricKey, tab]);
 
   // ---- Live mode ---------------------------------------------------------
   const onLiveUpdate = useCallback(
     (update: LiveUpdate) => {
+      if (!user.demo) setDevices(update.devices);
+      if (update.readings.length > 0) setReadingsTick((n) => n + 1);
       const index = serverData.dates.indexOf(update.date);
       if (index < 0) {
         router.refresh(); // the day rolled over — fetch the new 60-day window
@@ -167,9 +230,20 @@ export function DashboardShell({
         simulated: readings.some((r) => r.simulated),
       });
     },
-    [serverData, router],
+    [serverData, router, user.demo],
   );
-  const liveStatus = useLiveUpdates(live, onLiveUpdate);
+  const liveStatus = useLiveUpdates(live, intervalS, onLiveUpdate);
+
+  const changeInterval = (seconds: number) => {
+    const previous = intervalS;
+    setIntervalS(seconds);
+    // The demo account is shared: its interval only changes this page's refresh rate.
+    if (user.demo) return;
+    startSavingInterval(async () => {
+      const result = await updateSettingsAction({ reading_interval_s: seconds });
+      if (!result.ok) setIntervalS(previous);
+    });
+  };
 
   const toggleLive = (on: boolean) => {
     setLive(on);
@@ -264,11 +338,21 @@ export function DashboardShell({
 
   if (!bundle) {
     return (
-      <div className="flex h-dvh flex-col items-center justify-center gap-2 p-6 text-center">
-        <p className="text-lg font-semibold">No farms yet</p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          Add farms to Supabase (or run <code>npm run seed</code>) and they will appear here.
+      <div className="flex h-dvh flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-lg font-semibold">{data.sourceNote ? "Your farms couldn't be loaded" : "No farms yet"}</p>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {data.sourceNote ?? "Add your farm and connect its ESP32 to see it here."}
         </p>
+        <div className="flex gap-2">
+          {data.sourceNote ? (
+            <Button variant="outline" onClick={() => router.refresh()}>
+              <RefreshCw /> Try again
+            </Button>
+          ) : null}
+          <Button asChild>
+            <Link href="/dashboard/setup">Farms &amp; devices</Link>
+          </Button>
+        </div>
       </div>
     );
   }
@@ -296,12 +380,13 @@ export function DashboardShell({
       <DashboardHeader
         user={user}
         source={data.source}
-        sourceFallback={Boolean(data.sourceNote)}
-        weatherOffline={data.weather.source === "unavailable"}
+        sourceError={Boolean(data.sourceNote)}
+        weatherOffline={data.weather.source === "unavailable" && data.farms.length > 0}
         live={live}
         onLiveChange={toggleLive}
         liveStatus={liveStatus}
         lastEvent={lastEvent}
+        interval={{ value: intervalS, onChange: changeInterval, pending: savingInterval }}
         onOpenFarms={() => setFarmsOpen(true)}
       />
 
@@ -329,178 +414,217 @@ export function DashboardShell({
               <p className="w-full text-[13px] text-muted-foreground">{farmFacts(bundle, day)}</p>
             </div>
 
-            {/* Map */}
-            <section aria-label="Farm map" className="overflow-hidden rounded-2xl border bg-card shadow-xs">
-              <div className="@container border-b px-3 py-2">
-                <LayerSwitcher value={metricKey} onChange={setMetricKey}>
-                  <ToolbarCaption>Map</ToolbarCaption>
-                  <Segmented
-                    ariaLabel="Base map"
-                    value={basemap}
-                    onChange={setBasemap}
-                    options={[
-                      {
-                        value: "satellite",
-                        label: <span className="hidden sm:inline">Satellite</span>,
-                        icon: <SatelliteIcon />,
-                        ariaLabel: "Satellite",
-                        title: "Satellite imagery",
-                      },
-                      {
-                        value: "streets",
-                        label: <span className="hidden sm:inline">Streets</span>,
-                        icon: <MapIcon />,
-                        ariaLabel: "Streets",
-                        title: "Street map",
-                      },
-                    ]}
-                  />
-                </LayerSwitcher>
-              </div>
-              <div
-                className={cn(
-                  // isolate: keeps Leaflet's z-indexes (400–1000) below sheets, menus and tooltips.
-                  "relative isolate grid min-h-[340px]",
-                  compare
-                    ? "h-[min(84vh,720px)] grid-rows-2 sm:h-[clamp(340px,calc(100dvh_-_340px),560px)] sm:grid-cols-2 sm:grid-rows-1"
-                    : "h-[clamp(340px,calc(100dvh_-_340px),560px)] grid-cols-1",
-                )}
+            <Tabs.Root value={tab} onValueChange={(v) => setTab(v as DashboardTab)} className="space-y-3">
+              <Tabs.List
+                aria-label="Dashboard views"
+                className="scrollbar-thin -mx-1 flex gap-1 overflow-x-auto border-b px-1 pb-px"
               >
-                {compare ? (
-                  <div className="relative min-h-0 border-b sm:border-r sm:border-b-0">
-                    <FarmMap
-                      farms={thenFarms}
-                      metric={metric}
-                      selectedId={farm.id}
-                      onSelect={selectFarm}
-                      basemap={basemap}
-                      role="follower"
-                      sync={sync}
-                      showSelectedName={false}
-                      padding={COMPARE_PADDING}
-                    />
-                    <MapChip className="absolute top-3 left-3 z-[1000]">Then · {formatShortDay(dates[thenIndex])}</MapChip>
-                  </div>
-                ) : null}
-                <div className="relative min-h-0">
-                  <FarmMap
-                    farms={mapFarms}
-                    metric={metric}
-                    selectedId={farm.id}
-                    onSelect={selectFarm}
-                    basemap={basemap}
-                    pulse={pulse}
-                    role="leader"
-                    sync={compare ? sync : null}
-                    fitAllSignal={fitAllSignal}
-                    focusSignal={focusSignal}
-                    onFieldViewChange={setFieldView}
-                    padding={compare ? COMPARE_PADDING : SINGLE_PADDING}
-                  />
-                  <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2">
-                    {compare ? <MapChip>Now · {formatShortDay(dates[dateIndex])}</MapChip> : null}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-card/90 shadow-md backdrop-blur-sm"
-                      onClick={() => (fieldView ? setFitAllSignal((n) => n + 1) : setFocusSignal((n) => n + 1))}
+                {DASHBOARD_TABS.map((t) => {
+                  const Icon = TAB_ICON[t];
+                  return (
+                    <Tabs.Trigger
+                      key={t}
+                      value={t}
+                      className="-mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2 text-[13.5px] font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring/60 data-[state=active]:border-primary data-[state=active]:text-foreground [&_svg]:hidden [&_svg]:size-4 2xl:[&_svg]:block"
                     >
-                      {fieldView ? <Maximize2 /> : <Crosshair />}
-                      {fieldView ? "All farms" : "Zoom to farm"}
-                    </Button>
+                      <Icon aria-hidden="true" />
+                      {TAB_LABEL[t]}
+                    </Tabs.Trigger>
+                  );
+                })}
+              </Tabs.List>
+
+              <Tabs.Content value="overview" className="space-y-3 outline-none">
+                {!user.demo ? (
+                  <DeviceStrip devices={devices.filter((d) => d.farm_id === farm.id)} intervalS={intervalS} farmId={farm.id} />
+                ) : null}
+
+                {/* Map */}
+                <section aria-label="Farm map" className="overflow-hidden rounded-2xl border bg-card shadow-xs">
+                  <div className="@container border-b px-3 py-2">
+                    <LayerSwitcher value={metricKey} onChange={setMetricKey}>
+                      <ToolbarCaption>Map</ToolbarCaption>
+                      <Segmented
+                        ariaLabel="Base map"
+                        value={basemap}
+                        onChange={setBasemap}
+                        options={[
+                          {
+                            value: "satellite",
+                            label: <span className="hidden sm:inline">Satellite</span>,
+                            icon: <SatelliteIcon />,
+                            ariaLabel: "Satellite",
+                            title: "Satellite imagery",
+                          },
+                          {
+                            value: "streets",
+                            label: <span className="hidden sm:inline">Streets</span>,
+                            icon: <MapIcon />,
+                            ariaLabel: "Streets",
+                            title: "Street map",
+                          },
+                        ]}
+                      />
+                    </LayerSwitcher>
                   </div>
-                  {!compare ? (
-                    <MapLegend
-                      metric={metric}
-                      marker={{ value: selectedMapValue, label: farm.name }}
-                      className="absolute bottom-6 left-3 z-[1000] hidden sm:block"
-                    />
-                  ) : null}
-                </div>
-              </div>
-              <MapLegend
-                metric={metric}
-                marker={{ value: selectedMapValue, label: farm.name }}
-                variant="strip"
-                className={cn("border-t", compare ? undefined : "sm:hidden")}
-              />
-              <div className="border-t px-3 py-3 sm:px-4">
-                <Timeline
-                  dates={dates}
-                  dateIndex={dateIndex}
-                  onDateIndex={changeDate}
-                  compare={compare}
-                  onCompareChange={toggleCompare}
-                  thenIndex={thenIndex}
-                  onThenIndex={changeThen}
-                />
-              </div>
-            </section>
-
-            {/* Headline numbers */}
-            <KpiTiles bundle={bundle} day={day} thenDay={thenDay} flashKey={flashKey} />
-
-            {/* Chart */}
-            <section aria-labelledby="chart-heading" className="rounded-2xl border bg-card p-3 shadow-xs sm:p-4">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <h3 id="chart-heading" className="text-[15px] font-semibold">
-                  {metric.label}
-                  <span className="font-normal text-muted-foreground"> · {metric.unit === "pH" ? "pH units" : metric.unit}</span>
-                </h3>
-                <InfoTip label={`About ${metric.label}`}>{metric.method}</InfoTip>
-                <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Select value={overlay.kind === "none" ? "none" : overlayChoice} onValueChange={setOverlayChoice}>
-                    <SelectTrigger size="sm" className="min-w-40 bg-card text-[13px]" aria-label="Compare the chart with">
-                      <SelectValue placeholder="Compare with…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No comparison</SelectItem>
-                      <SelectItem value="previous" disabled={!previousAvailable}>
-                        Previous {rangeDays} days{previousAvailable ? "" : " (no data)"}
-                      </SelectItem>
-                      <SelectSeparator />
-                      {ranked
-                        .filter((b) => b.farm.id !== farm.id)
-                        .map((b) => (
-                          <SelectItem key={b.farm.id} value={b.farm.id}>
-                            {b.farm.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  <Segmented<`${RangeDays}`>
-                    ariaLabel="Chart range"
-                    size="sm"
-                    value={`${rangeDays}`}
-                    onChange={(v) => setRangeDays(Number(v) as RangeDays)}
-                    options={[
-                      { value: "7", label: "7 d", ariaLabel: "Last 7 days" },
-                      { value: "30", label: "30 d", ariaLabel: "Last 30 days" },
-                      { value: "60", label: "60 d", ariaLabel: "Last 60 days" },
-                    ]}
+                  <div
+                    className={cn(
+                      // isolate: keeps Leaflet's z-indexes (400–1000) below sheets, menus and tooltips.
+                      "relative isolate grid min-h-[340px]",
+                      compare
+                        ? "h-[min(84vh,720px)] grid-rows-2 sm:h-[clamp(340px,calc(100dvh_-_340px),560px)] sm:grid-cols-2 sm:grid-rows-1"
+                        : "h-[clamp(340px,calc(100dvh_-_340px),560px)] grid-cols-1",
+                    )}
+                  >
+                    {compare ? (
+                      <div className="relative min-h-0 border-b sm:border-r sm:border-b-0">
+                        <FarmMap
+                          farms={thenFarms}
+                          metric={metric}
+                          selectedId={farm.id}
+                          onSelect={selectFarm}
+                          basemap={basemap}
+                          role="follower"
+                          sync={sync}
+                          showSelectedName={false}
+                          padding={COMPARE_PADDING}
+                        />
+                        <MapChip className="absolute top-3 left-3 z-[1000]">Then · {formatShortDay(dates[thenIndex])}</MapChip>
+                      </div>
+                    ) : null}
+                    <div className="relative min-h-0">
+                      <FarmMap
+                        farms={mapFarms}
+                        metric={metric}
+                        selectedId={farm.id}
+                        onSelect={selectFarm}
+                        basemap={basemap}
+                        pulse={pulse}
+                        role="leader"
+                        sync={compare ? sync : null}
+                        fitAllSignal={fitAllSignal}
+                        focusSignal={focusSignal}
+                        onFieldViewChange={setFieldView}
+                        padding={compare ? COMPARE_PADDING : SINGLE_PADDING}
+                      />
+                      <div className="absolute top-3 left-3 z-[1000] flex items-center gap-2">
+                        {compare ? <MapChip>Now · {formatShortDay(dates[dateIndex])}</MapChip> : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-card/90 shadow-md backdrop-blur-sm"
+                          onClick={() => (fieldView ? setFitAllSignal((n) => n + 1) : setFocusSignal((n) => n + 1))}
+                        >
+                          {fieldView ? <Maximize2 /> : <Crosshair />}
+                          {fieldView ? "All farms" : "Zoom to farm"}
+                        </Button>
+                      </div>
+                      {!compare ? (
+                        <MapLegend
+                          metric={metric}
+                          marker={{ value: selectedMapValue, label: farm.name }}
+                          className="absolute bottom-6 left-3 z-[1000] hidden sm:block"
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                  <MapLegend
+                    metric={metric}
+                    marker={{ value: selectedMapValue, label: farm.name }}
+                    variant="strip"
+                    className={cn("border-t", compare ? undefined : "sm:hidden")}
                   />
-                </div>
-              </div>
-              <MetricChart
-                bundle={bundle}
-                metric={metric}
-                dates={dates}
-                endIndex={last}
-                rangeDays={rangeDays}
-                overlay={overlay}
-                overlayLabel={overlayLabel}
-                markers={
-                  compare
-                    ? [
-                        { index: thenIndex, label: "Then" },
-                        { index: dateIndex, label: "Now" },
-                      ]
-                    : dateIndex < last
-                      ? [{ index: dateIndex, label: formatShortDay(dates[dateIndex]) }]
-                      : []
-                }
-              />
-            </section>
+                  <div className="border-t px-3 py-3 sm:px-4">
+                    <Timeline
+                      dates={dates}
+                      dateIndex={dateIndex}
+                      onDateIndex={changeDate}
+                      compare={compare}
+                      onCompareChange={toggleCompare}
+                      thenIndex={thenIndex}
+                      onThenIndex={changeThen}
+                    />
+                  </div>
+                </section>
+
+                {/* Headline numbers */}
+                <KpiTiles bundle={bundle} day={day} thenDay={thenDay} flashKey={flashKey} />
+
+                {/* Chart */}
+                <section aria-labelledby="chart-heading" className="rounded-2xl border bg-card p-3 shadow-xs sm:p-4">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <h3 id="chart-heading" className="text-[15px] font-semibold">
+                      {metric.label}
+                      <span className="font-normal text-muted-foreground"> · {metric.unit === "pH" ? "pH units" : metric.unit}</span>
+                    </h3>
+                    <InfoTip label={`About ${metric.label}`}>{metric.method}</InfoTip>
+                    <div className="ml-auto flex flex-wrap items-center gap-2">
+                      <Select value={overlay.kind === "none" ? "none" : overlayChoice} onValueChange={setOverlayChoice}>
+                        <SelectTrigger size="sm" className="min-w-40 bg-card text-[13px]" aria-label="Compare the chart with">
+                          <SelectValue placeholder="Compare with…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No comparison</SelectItem>
+                          <SelectItem value="previous" disabled={!previousAvailable}>
+                            Previous {rangeDays} days{previousAvailable ? "" : " (no data)"}
+                          </SelectItem>
+                          <SelectSeparator />
+                          {ranked
+                            .filter((b) => b.farm.id !== farm.id)
+                            .map((b) => (
+                              <SelectItem key={b.farm.id} value={b.farm.id}>
+                                {b.farm.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Segmented<`${RangeDays}`>
+                        ariaLabel="Chart range"
+                        size="sm"
+                        value={`${rangeDays}`}
+                        onChange={(v) => setRangeDays(Number(v) as RangeDays)}
+                        options={[
+                          { value: "7", label: "7 d", ariaLabel: "Last 7 days" },
+                          { value: "30", label: "30 d", ariaLabel: "Last 30 days" },
+                          { value: "60", label: "60 d", ariaLabel: "Last 60 days" },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <MetricChart
+                    bundle={bundle}
+                    metric={metric}
+                    dates={dates}
+                    endIndex={last}
+                    rangeDays={rangeDays}
+                    overlay={overlay}
+                    overlayLabel={overlayLabel}
+                    markers={
+                      compare
+                        ? [
+                            { index: thenIndex, label: "Then" },
+                            { index: dateIndex, label: "Now" },
+                          ]
+                        : dateIndex < last
+                          ? [{ index: dateIndex, label: formatShortDay(dates[dateIndex]) }]
+                          : []
+                    }
+                  />
+                </section>
+              </Tabs.Content>
+
+              <Tabs.Content value="readings" className="outline-none">
+                <ReadingsExplorer key={farm.id} bundle={bundle} demo={user.demo} refreshKey={readingsTick} />
+              </Tabs.Content>
+              {(["weather", "temperature", "humidity", "rain", "wind"] as const).map((view) => (
+                <Tabs.Content key={view} value={view} className="outline-none">
+                  <WeatherTab view={view} bundles={ranked} selectedFarmId={farm.id} onSelectFarm={selectFarm} userKey={user.email} />
+                </Tabs.Content>
+              ))}
+              <Tabs.Content value="insights" className="outline-none">
+                <InsightsTab key={farm.id} bundle={bundle} dates={dates} />
+              </Tabs.Content>
+            </Tabs.Root>
           </main>
 
           <aside

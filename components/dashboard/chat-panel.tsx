@@ -1,12 +1,14 @@
 "use client";
 
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, Sparkles } from "lucide-react";
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
+import { AnswerSections, revealSections, sectionsText } from "@/components/dashboard/answer-sections";
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { Markdown } from "@/components/dashboard/markdown";
 import { Button } from "@/components/ui/button";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import type { ChatAnswerSource, ChatTurn } from "@/lib/ai/contract";
+import { isSectioned, splitAnswer } from "@/lib/ai/sections";
 import { cn } from "@/lib/utils";
 
 export interface ChatAnswer {
@@ -47,7 +49,12 @@ function AssistantMessage({
   onProgress: () => void;
   onRetry?: () => void;
 }) {
-  const { shown, typing } = useTypewriter(message.content, Boolean(message.animate), () => onTyped(message.id));
+  // Answers with structure (headings, labelled parts, instruction lists) are shown as sections.
+  const sections = useMemo(() => (message.error ? [] : splitAnswer(message.content)), [message.content, message.error]);
+  const structured = isSectioned(sections);
+  const { shown, typing } = useTypewriter(structured ? sectionsText(sections) : message.content, Boolean(message.animate), () =>
+    onTyped(message.id),
+  );
   const progress = useRef(onProgress);
   useEffect(() => {
     progress.current = onProgress;
@@ -74,9 +81,13 @@ function AssistantMessage({
             message.error ? "bg-risk-medium-soft text-risk-medium-ink" : "bg-card ring-1 ring-border",
           )}
         >
-          <div className={cn(typing && "yai-caret")}>
-            <Markdown text={shown} />
-          </div>
+          {structured ? (
+            <AnswerSections sections={revealSections(sections, shown.length)} compact typing={typing} />
+          ) : (
+            <div className={cn(typing && "yai-caret")}>
+              <Markdown text={shown} />
+            </div>
+          )}
         </div>
         {message.error && onRetry ? (
           <Button variant="ghost" size="sm" className="mt-1 h-7 px-2 text-xs" onClick={onRetry}>

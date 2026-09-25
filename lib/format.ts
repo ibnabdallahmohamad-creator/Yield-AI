@@ -88,3 +88,10 @@ export function fmtNum(value: number | null | undefined, decimals = 1): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
+
+/** "10 s", "5 min", "1 h" — for reading intervals. */
+export function formatInterval(seconds: number): string {
+  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  return `${Math.round(seconds / 3600)} h`;
+}

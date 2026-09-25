@@ -142,7 +142,7 @@ export function FarmDetail({
         className="sticky top-0"
         user={user}
         source={data.source}
-        sourceFallback={Boolean(data.sourceNote)}
+        sourceError={Boolean(data.sourceNote)}
         weatherOffline={data.weather.source === "unavailable"}
         title="Farm details"
       />

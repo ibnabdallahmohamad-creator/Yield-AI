@@ -1,6 +1,6 @@
 "use client";
 
-import { CloudOff, Database, House, LogOut, Menu, Radio } from "lucide-react";
+import { CloudOff, Cpu, Database, House, LogOut, Menu, Radio, Timer } from "lucide-react";
 import Link from "next/link";
 import { useId, useTransition } from "react";
 import { signOutAction } from "@/app/(auth)/actions";
@@ -11,13 +11,20 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { LiveStatus } from "@/hooks/use-live-updates";
-import { formatTimeSeconds, initials } from "@/lib/format";
+import { formatInterval, formatTimeSeconds, initials } from "@/lib/format";
+import { READING_INTERVALS_S } from "@/lib/store/types";
 import type { DataSource } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -28,14 +35,23 @@ export interface LiveEvent {
   simulated: boolean;
 }
 
-function SourceBadge({ source, fallback }: { source: DataSource; fallback: boolean }) {
-  const label = source === "supabase" ? "Supabase" : fallback ? "Demo data · offline" : "Demo data";
-  const text =
-    source === "supabase"
-      ? "Live data from the Supabase database."
-      : fallback
-        ? "Supabase can't be reached right now, so the built-in demo dataset is shown. Everything keeps working."
-        : "Built-in demo dataset: 8 farms in northern Qatar with 60 days of probe readings. Connect Supabase to use your own.";
+export interface HeaderUser {
+  name: string;
+  email: string;
+  demo: boolean;
+}
+
+const SOURCE: Record<DataSource, { label: string; text: string }> = {
+  demo: {
+    label: "Demo data",
+    text: "The shared demo account shows 8 built-in demo farms with 60 days of readings. Create your own account to connect your ESP32 probes — it starts empty.",
+  },
+  supabase: { label: "Your farms", text: "Your own farms and probe readings, stored in Supabase." },
+  local: { label: "Your farms", text: "Your own farms and probe readings, stored on this server (.data/)." },
+};
+
+function SourceBadge({ source, error }: { source: DataSource; error: boolean }) {
+  const { label, text } = SOURCE[source];
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -43,22 +59,24 @@ function SourceBadge({ source, fallback }: { source: DataSource; fallback: boole
           tabIndex={0}
           className={cn(
             "inline-flex h-6 cursor-default items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold whitespace-nowrap ring-1 ring-inset focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none",
-            source === "supabase" && "bg-risk-low-soft text-risk-low-ink ring-risk-low/25",
-            source === "mock" && !fallback && "bg-sand-200 text-foreground/75 ring-black/5",
-            source === "mock" && fallback && "bg-risk-medium-soft text-risk-medium-ink ring-risk-medium/40",
+            error
+              ? "bg-risk-medium-soft text-risk-medium-ink ring-risk-medium/40"
+              : source === "demo"
+                ? "bg-sand-200 text-foreground/75 ring-black/5"
+                : "bg-risk-low-soft text-risk-low-ink ring-risk-low/25",
           )}
         >
           <Database className="size-3" aria-hidden="true" />
-          {label}
+          {error ? "Data unavailable" : label}
         </span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-64">{text}</TooltipContent>
+      <TooltipContent className="max-w-64">{error ? "Your farms could not be loaded just now. The page retries on refresh." : text}</TooltipContent>
     </Tooltip>
   );
 }
 
 const STATUS_TEXT: Record<LiveStatus, string> = {
-  off: "Live mode off",
+  off: "Live updates off",
   connecting: "Connecting…",
   live: "Live",
   retrying: "Reconnecting…",
@@ -119,7 +137,51 @@ function LiveControl({
   );
 }
 
-function UserMenu({ user }: { user: { name: string; email: string } }) {
+/** How often readings are refreshed (and, for accounts, how often their ESP32s report). */
+export function IntervalSelect({
+  value,
+  onChange,
+  pending,
+  demo,
+  className,
+}: {
+  value: number;
+  onChange: (seconds: number) => void;
+  pending?: boolean;
+  demo: boolean;
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className={className}>
+          <Select value={String(value)} onValueChange={(v) => onChange(Number(v))} disabled={pending}>
+            <SelectTrigger size="sm" className="h-8 gap-1 rounded-full bg-card pl-2.5 text-[13px] font-semibold" aria-label="Reading interval">
+              <Timer className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="end">
+              {READING_INTERVALS_S.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  Every {formatInterval(s)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">
+        {demo
+          ? "How often the dashboard refreshes the live readings."
+          : "How often your ESP32s send a reading and the dashboard refreshes. Devices pick up a change with their next reading."}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+type IntervalControl = { value: number; onChange: (seconds: number) => void; pending?: boolean };
+
+function UserMenu({ user, interval }: { user: HeaderUser; interval?: IntervalControl }) {
   const [pending, startTransition] = useTransition();
   return (
     <DropdownMenu>
@@ -138,6 +200,28 @@ function UserMenu({ user }: { user: { name: string; email: string } }) {
           <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {interval ? (
+          // Phones have no room for the interval control in the header.
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="sm:hidden">
+              <Timer /> Every {formatInterval(interval.value)}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={String(interval.value)} onValueChange={(v) => interval.onChange(Number(v))}>
+                {READING_INTERVALS_S.map((s) => (
+                  <DropdownMenuRadioItem key={s} value={String(s)} disabled={interval.pending}>
+                    Every {formatInterval(s)}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : null}
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/setup">
+            <Cpu /> Farms &amp; devices
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/">
             <House /> Home page
@@ -160,19 +244,21 @@ function UserMenu({ user }: { user: { name: string; email: string } }) {
 export function DashboardHeader({
   user,
   source,
-  sourceFallback,
+  sourceError = false,
   weatherOffline,
   title = "Farm dashboard",
   live = false,
   onLiveChange,
   liveStatus = "off",
   lastEvent = null,
+  interval,
   onOpenFarms,
+  showSetupLink = true,
   className,
 }: {
-  user: { name: string; email: string };
+  user: HeaderUser;
   source: DataSource;
-  sourceFallback: boolean;
+  sourceError?: boolean;
   weatherOffline: boolean;
   title?: string;
   live?: boolean;
@@ -180,8 +266,11 @@ export function DashboardHeader({
   onLiveChange?: (on: boolean) => void;
   liveStatus?: LiveStatus;
   lastEvent?: LiveEvent | null;
+  /** Reading interval control (omit to hide). */
+  interval?: IntervalControl;
   /** Omit to hide the farm-list button (small screens). */
   onOpenFarms?: () => void;
+  showSetupLink?: boolean;
   className?: string;
 }) {
   return (
@@ -197,13 +286,13 @@ export function DashboardHeader({
       <span className="hidden h-5 w-px bg-border md:block" aria-hidden="true" />
       <p className="hidden text-[14px] font-semibold text-muted-foreground md:block">{title}</p>
       <div className="hidden items-center gap-2 sm:flex">
-        <SourceBadge source={source} fallback={sourceFallback} />
+        <SourceBadge source={source} error={sourceError} />
         {weatherOffline ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span
                 tabIndex={0}
-                className="inline-flex h-6 items-center gap-1.5 rounded-full bg-sand-200 px-2.5 text-[11.5px] font-semibold text-foreground/75 ring-1 ring-black/5 ring-inset"
+                className="hidden h-6 items-center gap-1.5 rounded-full bg-sand-200 px-2.5 text-[11.5px] font-semibold text-foreground/75 ring-1 ring-black/5 ring-inset lg:inline-flex"
               >
                 <CloudOff className="size-3" aria-hidden="true" /> Weather offline
               </span>
@@ -216,7 +305,17 @@ export function DashboardHeader({
       </div>
       <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
         {onLiveChange ? <LiveControl live={live} onLiveChange={onLiveChange} status={liveStatus} lastEvent={lastEvent} /> : null}
-        <UserMenu user={user} />
+        {interval ? (
+          <IntervalSelect value={interval.value} onChange={interval.onChange} pending={interval.pending} demo={user.demo} className="hidden sm:block" />
+        ) : null}
+        {showSetupLink ? (
+          <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-full bg-card md:inline-flex">
+            <Link href="/dashboard/setup">
+              <Cpu /> Farms &amp; devices
+            </Link>
+          </Button>
+        ) : null}
+        <UserMenu user={user} interval={interval} />
       </div>
     </header>
   );

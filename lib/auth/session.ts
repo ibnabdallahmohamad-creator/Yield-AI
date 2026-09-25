@@ -6,6 +6,7 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { isDemoEmail } from "../env";
 import { createSupabaseServerClient, withTimeout } from "../supabase/server";
 import { SESSION_COOKIE, SESSION_MAX_AGE_S, hasSupabaseAuthCookie, signSessionToken, verifySessionToken } from "./token";
 
@@ -14,6 +15,8 @@ export interface AppUser {
   email: string;
   name: string;
   provider: "supabase" | "local";
+  /** The shared demo account: sees the built-in demo farms and cannot add its own. */
+  demo: boolean;
 }
 
 /** Supabase verification budget; past it we treat the Supabase session as absent. */
@@ -22,7 +25,9 @@ const SUPABASE_AUTH_TIMEOUT_MS = 3500;
 export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
   const cookieStore = await cookies();
   const local = await verifySessionToken(cookieStore.get(SESSION_COOKIE)?.value);
-  if (local) return { id: local.sub, email: local.email, name: local.name || local.email, provider: "local" };
+  if (local) {
+    return { id: local.sub, email: local.email, name: local.name || local.email, provider: "local", demo: isDemoEmail(local.email) };
+  }
 
   if (!hasSupabaseAuthCookie(cookieStore.getAll().map((c) => c.name))) return null;
   const supabase = await createSupabaseServerClient();
@@ -38,6 +43,7 @@ export const getCurrentUser = cache(async (): Promise<AppUser | null> => {
       email,
       name: typeof meta.name === "string" && meta.name ? meta.name : email,
       provider: "supabase",
+      demo: isDemoEmail(email),
     };
   } catch (error) {
     console.warn("[auth] Supabase session check failed:", error instanceof Error ? error.message : error);

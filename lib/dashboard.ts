@@ -160,12 +160,12 @@ export function farmFacts(bundle: FarmBundle, day: FarmDay | null): string {
   const { farm } = bundle;
   const parts = [
     CROPS[farm.main_crop].name,
-    `${farm.area_ha.toLocaleString("en-US", { maximumFractionDigits: 1 })} ha`,
+    `${farm.area_ha.toLocaleString("en-US", { maximumFractionDigits: farm.area_ha < 1 ? 2 : 1 })} ha`,
     farm.region,
     farm.owner,
     SOILS[farm.soil_type].name.toLowerCase(),
-    `${bundle.sensors.length} probes`,
+    `${bundle.sensors.length} probe${bundle.sensors.length === 1 ? "" : "s"}`,
   ];
   if (day) parts.push(`${GROWTH_STAGE_LABEL[day.stage].toLowerCase()}, day ${day.dap}`);
-  return parts.join(" · ");
+  return parts.filter((p) => p.trim() !== "").join(" · ");
 }

@@ -1,4 +1,4 @@
-/** Deterministic pseudo-random helpers so mock data and the Supabase seed are identical. */
+/** Deterministic pseudo-random helpers, so the demo dataset is the same on every server and in every test. */
 
 /** FNV-1a 32-bit hash of a string. */
 export function hashString(input: string): number {

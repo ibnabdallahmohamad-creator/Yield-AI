@@ -16,7 +16,7 @@ beforeAll(() => {
     daily: aggregateDaily(ds.readings),
     weather: { byFarm: {}, source: "unavailable", note: null }, // fully offline (probe air data only)
     insights: [],
-    source: "mock",
+    source: "demo",
     sourceNote: null,
     sensorsByFarm: ds.sensorsByFarm,
   });

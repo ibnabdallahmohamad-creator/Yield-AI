@@ -29,7 +29,7 @@ async function main() {
     daily: aggregateDaily(ds.readings),
     weather,
     insights: [],
-    source: "mock",
+    source: "demo",
     sourceNote: null,
     sensorsByFarm: ds.sensorsByFarm,
   });

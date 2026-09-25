@@ -9,7 +9,7 @@
 import type { Farm, WeatherDay } from "../types";
 import { QATAR_TIMEZONE } from "./time";
 
-const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
+const openMeteoUrl = () => `${(process.env.OPEN_METEO_BASE_URL?.trim() || "https://api.open-meteo.com").replace(/\/+$/, "")}/v1/forecast`;
 const DAILY_VARS = [
   "temperature_2m_max",
   "temperature_2m_min",
@@ -77,7 +77,7 @@ export async function getWeatherForFarms(farms: Pick<Farm, "id" | "lat" | "lng">
     wind_speed_unit: "ms",
   });
   try {
-    const res = await fetch(`${OPEN_METEO_URL}?${params}`, {
+    const res = await fetch(`${openMeteoUrl()}?${params}`, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
     });

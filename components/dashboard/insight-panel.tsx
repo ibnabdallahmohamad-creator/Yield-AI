@@ -4,7 +4,7 @@ import { ChevronDown, Sparkles, Sprout, TrendingDown, TrendingUp } from "lucide-
 import { useState } from "react";
 import { InfoTip } from "@/components/dashboard/info-tip";
 import { RISK_BAR, RiskBadge } from "@/components/dashboard/risk-badge";
-import type { AiInsight, Priority } from "@/lib/ai/contract";
+import { isRulesInsight, type AiInsight, type Priority } from "@/lib/ai/contract";
 import { useNow } from "@/hooks/use-now";
 import { formatShortDay, formatTime, qatarDay, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -89,8 +89,11 @@ export function InsightPanel({ insight, farmName, className }: { insight: AiInsi
             Risk
           </h3>
           <InfoTip label="About the risk score">
-            Risk score 0–100 from the AI insight model: predicted yield loss from salinity (Maas–Hoffman), the 30-day ECe
-            trend and FAO-56 water stress (Ks). 70+ high, 40–69 medium, below 40 low.
+            {isRulesInsight(insight)
+              ? "From the built-in agronomy engine until the AI model writes an insight for this farm: "
+              : "Risk score 0–100 from the AI insight model: "}
+            predicted yield loss from salinity (Maas–Hoffman), the 30-day ECe trend and FAO-56 water stress (Ks). 70+ high, 40–69 medium,
+            below 40 low.
           </InfoTip>
           <span
             className="ml-auto text-[11.5px] text-muted-foreground"

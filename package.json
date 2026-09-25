@@ -14,7 +14,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "seed": "tsx scripts/seed.ts",
     "data:summary": "tsx scripts/data-summary.ts",
     "insights:preview": "tsx scripts/insights-preview.ts",
     "chat:preview": "tsx scripts/chat-preview.ts"

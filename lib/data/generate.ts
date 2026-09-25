@@ -1,7 +1,7 @@
 /**
  * Deterministic synthetic dataset: 8 farms × 4–6 probes × 60 days of 3-hourly readings.
  *
- * Used for mock mode and by `scripts/seed.ts`, so both produce the same farms.
+ * Used for the demo account and the landing page (never stored with accounts' data).
  * Values are shaped by each farm's scenario (see `seed-farms.ts`) and by physical structure:
  * diurnal cycles, daily drip irrigation, weekly fertigation, a late-summer cooling trend,
  * and spatial hotspots so the IDW maps show real patterns.

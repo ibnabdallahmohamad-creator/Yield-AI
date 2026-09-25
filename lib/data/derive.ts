@@ -28,6 +28,7 @@ import type {
   AirSource,
   DashboardData,
   DataSource,
+  Device,
   Farm,
   FarmBundle,
   FarmDay,
@@ -54,6 +55,7 @@ export interface DeriveInput {
   dates?: string[];
   maxDays?: number;
   sensorsByFarm?: Record<string, Sensor[]>;
+  devices?: Device[];
 }
 
 const r = (v: number | null | undefined, d: number) => (typeof v === "number" && Number.isFinite(v) ? round(v, d) : null);
@@ -270,14 +272,13 @@ export function buildDashboardData(input: DeriveInput): DashboardData {
       list.push(row);
       byDay.set(row.day, list);
     }
-    let sensors = input.sensorsByFarm?.[farm.id];
-    if (!sensors) {
-      const latest = new Map<string, Sensor>();
-      for (const row of rows.slice().sort((a, b) => a.last_ts.localeCompare(b.last_ts))) {
-        latest.set(row.sensor_id, { id: row.sensor_id, lat: row.lat, lng: row.lng });
-      }
-      sensors = Array.from(latest.values()).sort((a, b) => a.id.localeCompare(b.id));
+    // Known probes (e.g. registered devices) keep their position; others come from their readings.
+    const byId = new Map<string, Sensor>();
+    for (const row of rows.slice().sort((a, b) => a.last_ts.localeCompare(b.last_ts))) {
+      byId.set(row.sensor_id, { id: row.sensor_id, lat: row.lat, lng: row.lng });
     }
+    for (const s of input.sensorsByFarm?.[farm.id] ?? []) byId.set(s.id, s);
+    const sensors = Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id));
     return {
       farm,
       sensors,
@@ -294,5 +295,6 @@ export function buildDashboardData(input: DeriveInput): DashboardData {
     weather: { source: input.weather.source, note: input.weather.note },
     dates,
     farms,
+    devices: input.devices ?? [],
   };
 }

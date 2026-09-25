@@ -29,6 +29,9 @@ export interface ScaleClass {
   label: string;
 }
 
+/** What a colour scale needs: fixed class bins and the top of the open-ended last class. */
+export type ColorScale = Pick<MetricDef, "classes" | "displayMax">;
+
 export interface MetricDef {
   key: MetricKey;
   label: string;
@@ -352,7 +355,7 @@ function rgb(hex: string) {
  * Position of a value along the legend (0–1): each class occupies an equal-width segment,
  * values are placed linearly inside their class.
  */
-export function legendPosition(metric: MetricDef, value: number): number {
+export function legendPosition(metric: ColorScale, value: number): number {
   const classes = metric.classes;
   const n = classes.length;
   for (let i = 0; i < n; i++) {
@@ -368,7 +371,7 @@ export function legendPosition(metric: MetricDef, value: number): number {
 }
 
 /** Smooth colour for a value: class colours anchored at segment centres, linear blend between. */
-export function colorRgb(metric: MetricDef, value: number): [number, number, number] {
+export function colorRgb(metric: ColorScale, value: number): [number, number, number] {
   const n = metric.classes.length;
   const t = legendPosition(metric, value) * n - 0.5; // in anchor units
   if (t <= 0) return rgb(metric.classes[0].color);
@@ -380,20 +383,20 @@ export function colorRgb(metric: MetricDef, value: number): [number, number, num
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 
-export function colorFor(metric: MetricDef, value: number | null | undefined): string {
+export function colorFor(metric: ColorScale, value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "#9ca3af";
   const [r, g, b] = colorRgb(metric, value);
   return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
 
 /** CSS gradient that matches `colorRgb` exactly, for the legend bar. */
-export function legendGradient(metric: MetricDef): string {
+export function legendGradient(metric: ColorScale): string {
   const n = metric.classes.length;
   const stops = metric.classes.map((c, i) => `${c.color} ${(((i + 0.5) / n) * 100).toFixed(2)}%`);
   return `linear-gradient(to right, ${metric.classes[0].color} 0%, ${stops.join(", ")}, ${metric.classes[n - 1].color} 100%)`;
 }
 
-export function classFor(metric: MetricDef, value: number | null | undefined): ScaleClass | null {
+export function classFor(metric: ColorScale, value: number | null | undefined): ScaleClass | null {
   if (value == null || !Number.isFinite(value)) return null;
   return metric.classes.find((c) => value >= c.min && value < c.max) ?? metric.classes[metric.classes.length - 1];
 }

@@ -1,7 +1,7 @@
 /**
  * Trimmed demo data for the public landing page widgets: every farm's pin and headline insight,
  * one farm's last 30 days for the chart, and pre-computed answers for the chat chips. Built from
- * the built-in demo dataset only (see getShowcaseDashboard).
+ * the built-in demo dataset only (see getDemoDashboard).
  */
 import "server-only";
 import { CROPS } from "../agronomy-tables";
@@ -13,7 +13,7 @@ import { farmValueAt, probeSamples, rankFarms, suggestedQuestions, type ProbeSam
 import type { GeoPolygon } from "../geo";
 import { METRICS } from "../metrics";
 import type { FarmBundle } from "../types";
-import { getShowcaseDashboard } from "./repository";
+import { getDemoDashboard } from "./repository";
 
 export const SHOWCASE_CHART_DAYS = 30;
 
@@ -46,7 +46,7 @@ export interface Showcase {
 }
 
 export async function getShowcase(): Promise<Showcase> {
-  const data = await getShowcaseDashboard();
+  const data = await getDemoDashboard();
   const ranked = rankFarms(data.farms);
 
   const farms: ShowcaseFarm[] = ranked.map((b) => {

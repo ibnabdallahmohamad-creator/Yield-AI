@@ -1,5 +1,5 @@
 /**
- * Prints the rule-based seed insights for every farm (what mock mode and `npm run seed` store).
+ * Prints the rule-engine insights for every demo farm (what the demo account shows until an AI insight exists).
  *
  *   npx tsx scripts/insights-preview.ts
  */
@@ -17,7 +17,7 @@ async function main() {
     daily: aggregateDaily(ds.readings),
     weather,
     insights: [],
-    source: "mock",
+    source: "demo",
     sourceNote: null,
     sensorsByFarm: ds.sensorsByFarm,
   });

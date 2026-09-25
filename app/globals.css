@@ -399,3 +399,51 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Setup maps: field corners and probe markers
+ * ------------------------------------------------------------------------- */
+.yai-vertex {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fde047;
+  border: 2.5px solid #1c2320;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.4);
+  cursor: grab;
+}
+.yai-vertex.is-first {
+  background: #ffffff;
+}
+.yai-probe {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2.5px solid oklch(0.42 0.085 158);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.4);
+  font: 700 10px/1 var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  color: oklch(0.26 0.05 162);
+}
+.yai-probe.is-active {
+  background: #fde047;
+  border-color: #1c2320;
+  cursor: grab;
+}
+
+/* Weather map wind arrows */
+.yai-wind-arrow {
+  display: block;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+.yai-wind-arrow path {
+  fill: oklch(0.24 0.026 155);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}

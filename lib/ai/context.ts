@@ -5,7 +5,9 @@
 import { GROWTH_STAGE_LABEL } from "../agronomy";
 import { CROPS, CROP_IDS, ECE_CLASSES } from "../agronomy-tables";
 import type { DashboardData, FarmBundle } from "../types";
-import type { ChatContext } from "./contract";
+import { compass, sliceSeries, summarizeOutlook, upcomingIndices, weatherAdvice, weatherCodeInfo } from "../weather/analysis";
+import type { PointForecast } from "../weather/types";
+import type { ChatContext, ForecastContext } from "./contract";
 import { lastDataIndex, probeLocation, trend, windowMean } from "./analysis";
 
 const TREND_WINDOW_DAYS = 30;
@@ -13,7 +15,38 @@ const TREND_WINDOW_DAYS = 30;
 const r = (v: number | null | undefined, d = 2) =>
   typeof v === "number" && Number.isFinite(v) ? Math.round(v * 10 ** d) / 10 ** d : null;
 
-export function buildChatContext(bundle: FarmBundle, data: Pick<DashboardData, "dates">, dateIndex?: number): ChatContext | null {
+/** The next 12 hours of a farm's forecast, summarised for the model. */
+export function forecastContext(point: PointForecast | null | undefined, kc: number | null, cropName: string, now = Date.now()): ForecastContext | null {
+  if (!point) return null;
+  const hours = upcomingIndices(point.hourly, now);
+  if (hours.length === 0) return null;
+  const series = sliceSeries(point.hourly, hours);
+  const s = summarizeOutlook(series);
+  return {
+    from: new Date(series.time[0]).toISOString(),
+    to: new Date(series.time.at(-1)!).toISOString(),
+    conditions: weatherCodeInfo(s.dominantCode).label,
+    temperature_min_c: r(s.tempMin?.value, 1),
+    temperature_max_c: r(s.tempMax?.value, 1),
+    temperature_max_at: s.tempMax ? new Date(s.tempMax.time).toISOString() : null,
+    humidity_min_pct: r(s.humidityMin?.value, 0),
+    humidity_max_pct: r(s.humidityMax?.value, 0),
+    rain_total_mm: r(s.rainTotal, 1) ?? 0,
+    rain_chance_max_pct: r(s.rainChanceMax?.value, 0),
+    wind_mean_m_s: r(s.windMean, 1),
+    wind_from: compass(s.windDirection),
+    gust_max_m_s: r(s.gustMax?.value, 1),
+    et0_total_mm: r(s.et0Total, 1) ?? 0,
+    advisories: weatherAdvice(series, { name: cropName, kc }).map((a) => `${a.title}. ${a.detail}`),
+  };
+}
+
+export function buildChatContext(
+  bundle: FarmBundle,
+  data: Pick<DashboardData, "dates">,
+  dateIndex?: number,
+  forecast?: PointForecast | null,
+): ChatContext | null {
   const index = lastDataIndex(bundle, dateIndex ?? data.dates.length - 1);
   const day = index >= 0 ? bundle.days[index] : null;
   if (!day) return null;
@@ -116,5 +149,6 @@ export function buildChatContext(bundle: FarmBundle, data: Pick<DashboardData, "
       undersupplied: CROP_IDS.filter((c) => CROPS[c].market.status === "undersupplied").map((c) => CROPS[c].name),
       crop_status: crop.market.note,
     },
+    forecast_next_12h: forecastContext(forecast, day.kc, crop.name),
   };
 }

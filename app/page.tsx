@@ -17,7 +17,7 @@ const STEPS = [
   {
     icon: Cpu,
     title: "Probe",
-    body: "In-field probes log soil salinity (EC), moisture, pH, temperature and NPK every three hours.",
+    body: "An ESP32 with a soil probe sends salinity (EC), moisture, pH, temperature and NPK over Wi-Fi — every 10 seconds by default.",
   },
   {
     icon: MapIcon,

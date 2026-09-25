@@ -1,13 +1,14 @@
 /**
  * Rule-based insights: what our fine-tuned model writes to `ai_insights`, reproduced with
- * transparent rules so mock mode and the Supabase seed have realistic rows before the model
- * is connected. Every number in the text comes from the FAO-56 / FAO-29 engine.
+ * transparent rules from a farm's own readings, so every farm has an assessment before the model
+ * writes one (and the demo farms always do). Every number in the text comes from the
+ * FAO-56 / FAO-29 engine.
  *
  * The risk score is a product heuristic (0–100) that blends salinity and water stress; it is
  * not a published index.
  */
 import { CROPS, ECE_CLASSES, type MarketStatus } from "../agronomy-tables";
-import type { AiInsight, Recommendation, RiskLevel } from "../ai/contract";
+import { RULES_INSIGHT_PREFIX, type AiInsight, type Recommendation, type RiskLevel } from "../ai/contract";
 import {
   cropNoun,
   dayAt,
@@ -100,7 +101,7 @@ function salinitySentence(f: FarmFacts): string | null {
   const cls = salinityLabel(day.salinityClass);
   if (isLossy(day)) {
     const rise =
-      f.ece30.from != null && (f.ece30.changePct ?? 0) > 5
+      f.ece30.from != null && f.ece30.days >= 3 && (f.ece30.changePct ?? 0) > 5
         ? `ECe rose from ${fmt(f.ece30.from)} to ${fmt(ece)} dS/m in ${f.ece30.days} days (${signedPct(f.ece30.changePct)})`
         : `ECe is ${fmt(ece)} dS/m`;
     return `${rise} — ${cls} and above the ${fmt(threshold)} dS/m ${crop} threshold, so the predicted yield loss is ${fmt(day.yieldLoss, 0)}%.`;
@@ -115,7 +116,7 @@ function waterSentence(f: FarmFacts): string | null {
   const { day } = f;
   if (!isStressed(day)) return null;
   const fall =
-    f.moisture30.from != null && (f.moisture30.changePct ?? 0) < -5
+    f.moisture30.from != null && f.moisture30.days >= 3 && (f.moisture30.changePct ?? 0) < -5
       ? ` Soil moisture fell from ${fmt(f.moisture30.from)}% to ${fmt(day.moisture)}% in ${f.moisture30.days} days.`
       : "";
   return `The root zone is depleted to ${fmt(day.deficitPct, 0)}% of readily available water (Ks ${fmt(day.ks, 2)}), so the ${cropNoun(f.bundle.farm.main_crop)} crop is water-stressed now.${fall}`;
@@ -189,7 +190,7 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
     });
   }
 
-  if ((f.k30.changePct ?? 0) < -8 && f.k30.from != null) {
+  if ((f.k30.changePct ?? 0) < -8 && f.k30.from != null && f.k30.days >= 3) {
     recs.push({
       title: "Top up potassium in the next fertigation",
       detail: `K fell from ${fmt(f.k30.from, 0)} to ${fmt(f.k30.to, 0)} mg/kg in ${f.k30.days} days. Adequate potassium also helps the crop cope with salt stress.`,
@@ -200,7 +201,7 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
   if (day.ph != null && day.ph > 8.0) {
     recs.push({
       title: `Watch alkalinity (pH ${fmt(day.ph, 2)})`,
-      detail: `pH ${f.ph30.change != null && f.ph30.change > 0.05 ? `rose ${fmt(f.ph30.change, 2)} units in ${f.ph30.days} days and ` : ""}is above 8.0, where phosphorus and micronutrients (Fe, Zn, Mn) become less available. Prefer acid-forming fertilisers such as ammonium sulphate.`,
+      detail: `pH ${f.ph30.change != null && f.ph30.days >= 3 && f.ph30.change > 0.05 ? `rose ${fmt(f.ph30.change, 2)} units in ${f.ph30.days} days and ` : ""}is above 8.0, where phosphorus and micronutrients (Fe, Zn, Mn) become less available. Prefer acid-forming fertilisers such as ammonium sulphate.`,
       priority: "low",
     });
   }
@@ -283,7 +284,7 @@ export function generateInsight(bundle: FarmBundle, index: number, createdAt: st
     );
   }
   return {
-    id: `seed-${bundle.farm.id}-${f.day.date}`,
+    id: `${RULES_INSIGHT_PREFIX}${bundle.farm.id}-${f.day.date}`,
     farm_id: bundle.farm.id,
     created_at: createdAt,
     risk_score: score,

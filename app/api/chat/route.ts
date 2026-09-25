@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
+import { answerQuestion } from "@/lib/ai/answer";
 import { buildChatContext } from "@/lib/ai/context";
-import { ChatRequestSchema, type ChatAnswerSource, type ChatResponse } from "@/lib/ai/contract";
-import { askLlm, llmAvailable } from "@/lib/ai/llm";
+import { ChatRequestSchema, type ChatResponse } from "@/lib/ai/contract";
 import { answerOffline } from "@/lib/ai/offline";
-import { aiServiceConfigured, askAiService } from "@/lib/ai/service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getFarmBundle } from "@/lib/data/repository";
+import { farmForecast } from "@/lib/weather/farm-forecast";
 
 /**
  * POST /api/chat — { farm_id, question, date?, history? } → ChatResponse.
@@ -27,47 +27,26 @@ export async function POST(request: Request) {
   }
   const { farm_id, question, date, history } = parsed.data;
 
-  const found = await getFarmBundle(farm_id);
+  const found = await getFarmBundle(user, farm_id);
   if (!found) return NextResponse.json({ error: "That farm doesn't exist." }, { status: 404 });
   const { data, bundle } = found;
   const dateIndex = date ? data.dates.indexOf(date) : -1;
-  const context = buildChatContext(bundle, data, dateIndex >= 0 ? dateIndex : undefined);
+  const forecast = await farmForecast(data, farm_id);
+  const context = buildChatContext(bundle, data, dateIndex >= 0 ? dateIndex : undefined, forecast);
   if (!context) {
-    return NextResponse.json({ error: "There are no readings for this farm yet." }, { status: 409 });
+    return NextResponse.json(
+      { error: "There are no readings for this farm yet — the assistant answers once its ESP32 has reported." },
+      { status: 409 },
+    );
   }
 
-  let answer: string | null = null;
-  let source: ChatAnswerSource = "offline";
-  let model: string | null = null;
-
-  if (aiServiceConfigured()) {
-    try {
-      const res = await askAiService({ farm_id, question, context, history });
-      answer = res.answer;
-      source = "ai-service";
-      model = "yield-ai";
-    } catch (error) {
-      console.warn("[chat] AI service failed, falling back:", error instanceof Error ? error.message : error);
-    }
-  }
-  if (!answer && llmAvailable()) {
-    try {
-      const res = await askLlm(question, context, history);
-      if (res) {
-        answer = res.answer;
-        source = "llm";
-        model = res.model;
-      }
-    } catch (error) {
-      console.warn("[chat] LLM fallback failed, using the offline engine:", error instanceof Error ? error.message : error);
-    }
-  }
-  if (!answer) {
-    answer = answerOffline(question, context);
-    source = "offline";
-    model = "agronomy-rules";
-  }
-
+  const { answer, source, model } = await answerQuestion({
+    farmId: farm_id,
+    question,
+    context,
+    history,
+    offline: () => answerOffline(question, context),
+  });
   const body: ChatResponse = { farm_id, answer, source, model, created_at: new Date().toISOString() };
   return NextResponse.json(body);
 }

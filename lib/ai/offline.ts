@@ -4,10 +4,11 @@
  * landing-page demo), so the chat always answers with the farm's real numbers.
  */
 import type { CropId } from "../agronomy-tables";
+import { hourLabel } from "../weather/analysis";
 import type { ChatContext } from "./contract";
 import { fmt, rankCrops, signedPct } from "./analysis";
 
-type Topic = "salinity" | "irrigation" | "crop" | "ph" | "nutrients" | "temperature" | "et" | "yield" | "hotspots" | "summary";
+type Topic = "salinity" | "irrigation" | "crop" | "ph" | "nutrients" | "weather" | "temperature" | "et" | "yield" | "hotspots" | "summary";
 
 const TOPIC_PATTERNS: Array<[Topic, RegExp]> = [
   ["hotspots", /\b(where|hot ?spots?|problem (spots?|areas?)|which (probe|part|block|area|zone)|worst)\b/i],
@@ -16,6 +17,7 @@ const TOPIC_PATTERNS: Array<[Topic, RegExp]> = [
   ["crop", /\bcrops?\b|\bplant(ing)?\b|\bgrow\b|market|next season|switch|rotat|\bsell\b|price/i],
   ["ph", /\bph\b|alkalin|acidi|\blime\b/i],
   ["nutrients", /nitrogen|phosph|potass|\bnpk\b|fertili[sz]|nutrient|\bn\b|\bk\b/i],
+  ["weather", /\b(weather|forecast|rain\w*|wind\w*|gusts?|spray\w*|humid\w*|storm\w*|dust\w*|tomorrow|tonight|this (afternoon|evening|morning)|next (few|12|twelve) hours)\b/i],
   ["temperature", /temperat|\bheat\b|\bhot\b|\bcool/i],
   ["et", /evapotrans|\bet0\b|\beto\b|\bet₀|\betc\b|crop coefficient|\bkc\b|water use|penman|hargreaves/i],
   ["yield", /\byield|\bloss|harvest|production|revenue/i],
@@ -50,11 +52,13 @@ function salinity(ctx: ChatContext): string {
   const t = ctx.trends;
   const crop = ctx.farm.crop.toLowerCase();
   const worst = worstProbe(ctx, "ece_dS_m", "max");
-  const rising = (t.ece_change_pct ?? 0) > 5;
+  const rising = t.window_days >= 3 && (t.ece_change_pct ?? 0) > 5;
   const lines: string[] = [];
   lines.push(
     `**Salinity at ${ctx.farm.name}:** ECe is ${n1(d.ece_dS_m)} dS/m (${d.salinity_class?.toLowerCase() ?? "unclassified"})` +
-      (t.ece_start_dS_m != null ? `, ${rising ? "up" : (t.ece_change_pct ?? 0) < -5 ? "down" : "roughly flat"} from ${n1(t.ece_start_dS_m)} dS/m over ${t.window_days} days (${signedPct(t.ece_change_pct)}).` : "."),
+      (t.ece_start_dS_m != null && t.window_days >= 3
+        ? `, ${rising ? "up" : (t.ece_change_pct ?? 0) < -5 ? "down" : "roughly flat"} from ${n1(t.ece_start_dS_m)} dS/m over ${t.window_days} days (${signedPct(t.ece_change_pct)}).`
+        : "."),
   );
   const loss = d.predicted_yield_loss_pct ?? 0;
   if (loss >= 2) {
@@ -141,7 +145,7 @@ function ph(ctx: ChatContext): string {
     v == null ? "unknown" : v < 6.6 ? "acid" : v < 7.4 ? "neutral" : v < 7.9 ? "slightly alkaline" : v < 8.5 ? "moderately alkaline" : "strongly alkaline";
   const change = ctx.trends.ph_change;
   return [
-    `**Soil pH is ${fmt(v, 2)} (${cls}, USDA classes)**${change != null ? `, ${change >= 0 ? "+" : "−"}${fmt(Math.abs(change), 2)} over ${ctx.trends.window_days} days` : ""}${probes.length > 1 ? `; probes range ${fmt(Math.min(...probes), 2)}–${fmt(Math.max(...probes), 2)}` : ""}.`,
+    `**Soil pH is ${fmt(v, 2)} (${cls}, USDA classes)**${change != null && ctx.trends.window_days >= 3 ? `, ${change >= 0 ? "+" : "−"}${fmt(Math.abs(change), 2)} over ${ctx.trends.window_days} days` : ""}${probes.length > 1 ? `; probes range ${fmt(Math.min(...probes), 2)}–${fmt(Math.max(...probes), 2)}` : ""}.`,
     (v ?? 0) >= 7.9
       ? "Above ~7.9, phosphorus, iron, zinc and manganese become less available. Prefer acid-forming fertilisers (ammonium sulphate), chelated micronutrients (Fe-EDDHA) and, if the water is high in bicarbonate, acid injection into the drip line."
       : "That is a comfortable range for most vegetables — no correction needed; keep an eye on it after heavy fertigation.",
@@ -151,7 +155,7 @@ function ph(ctx: ChatContext): string {
 function nutrients(ctx: ChatContext): string {
   const r = ctx.latest_readings;
   return [
-    `**Latest probe estimates:** N ${n0(r.n_mg_kg)}, P ${n0(r.p_mg_kg)}, K ${n0(r.k_mg_kg)} mg/kg (farm mean of ${r.probes} probes).`,
+    `**Latest probe estimates:** N ${n0(r.n_mg_kg)}, P ${n0(r.p_mg_kg)}, K ${n0(r.k_mg_kg)} mg/kg (${r.probes === 1 ? "one probe" : `farm mean of ${r.probes} probes`}).`,
     "Probe NPK values follow fertigation cycles and are best used for trends; confirm rates with a lab soil test before changing the programme.",
     (ctx.derived.predicted_yield_loss_pct ?? 0) >= 2
       ? "On this salinising field, use potassium sulphate rather than potassium chloride so fertiliser doesn't add chloride."
@@ -163,12 +167,32 @@ function temperature(ctx: ChatContext): string {
   const t = ctx.latest_readings.soil_temperature_c;
   const change = ctx.trends.soil_temperature_change_c;
   return [
-    `**Soil temperature is ${n1(t)} °C** (probe mean)${change != null ? `, ${change >= 0 ? "+" : "−"}${n1(Math.abs(change))} °C over ${ctx.trends.window_days} days` : ""}.`,
+    `**Soil temperature is ${n1(t)} °C** (probe mean)${change != null && ctx.trends.window_days >= 3 ? `, ${change >= 0 ? "+" : "−"}${n1(Math.abs(change))} °C over ${ctx.trends.window_days} days` : ""}.`,
     (t ?? 0) >= 32
       ? "Root zones above ~32 °C slow root growth and raise water demand: irrigate early morning, and consider mulch or shade nets on young plants."
       : "That is workable for the crop; the late-summer cooling trend also lowers daily water demand.",
     `Crop water use today is ${n1(ctx.derived.etc_mm_day)} mm/day.`,
   ].join(" ");
+}
+
+function weather(ctx: ChatContext): string {
+  const f = ctx.forecast_next_12h;
+  if (!f) {
+    return "I don't have a weather forecast for this farm right now (Open-Meteo can't be reached). The forecast refreshes every 12 hours — try again later, or check the Weather tab.";
+  }
+  const rain =
+    f.rain_total_mm >= 0.1
+      ? `${fmt(f.rain_total_mm, 1)} mm of rain (chance up to ${n0(f.rain_chance_max_pct)}%)`
+      : f.rain_chance_max_pct != null && f.rain_chance_max_pct >= 30
+        ? `a ${n0(f.rain_chance_max_pct)}% chance of a shower but little or no rain`
+        : "no rain expected";
+  const lines = [
+    `**Next 12 hours at ${ctx.farm.name}:** ${f.conditions.toLowerCase()}, ${n1(f.temperature_min_c)}–${n1(f.temperature_max_c)} °C` +
+      (f.temperature_max_at ? ` (warmest at ${hourLabel(Date.parse(f.temperature_max_at))})` : "") +
+      `, humidity ${n0(f.humidity_min_pct)}–${n0(f.humidity_max_pct)}%, wind ${n1(f.wind_mean_m_s)} m/s from the ${f.wind_from} with gusts to ${n1(f.gust_max_m_s)} m/s, and ${rain}.`,
+  ];
+  if (f.advisories.length) lines.push(`**What it means for the farm:**\n${f.advisories.map((a, i) => `${i + 1}. ${a}`).join("\n")}`);
+  return lines.join("\n\n");
 }
 
 function et(ctx: ChatContext): string {
@@ -223,6 +247,7 @@ const RENDER: Record<Topic, (ctx: ChatContext) => string> = {
   crop,
   ph,
   nutrients,
+  weather,
   temperature,
   et,
   yield: yieldAnswer,
@@ -242,4 +267,33 @@ export function answerOffline(question: string, ctx: ChatContext): string {
   // "Why is salinity rising / what should I plant" → one focused answer is better than two.
   const unique = topics.length === 2 && (topics[1] === "summary" || topics[0] === "hotspots") ? [topics[0]] : topics;
   return unique.map((t) => RENDER[t](ctx)).join("\n\n");
+}
+
+/**
+ * A complete farm analysis with Markdown headings (the AI Insights tab when neither the AI service
+ * nor an LLM answers). The sections are split for display by lib/ai/sections.ts.
+ */
+export function analyzeOffline(ctx: ChatContext): string {
+  const insight = ctx.latest_insight;
+  const lead = insight
+    ? `**${ctx.farm.name} is at ${insight.risk_level} risk (${insight.risk_score}/100).** ${insight.summary}`
+    : `**${ctx.farm.name}:** ${ctx.latest_readings.probes} probe${ctx.latest_readings.probes === 1 ? "" : "s"} reporting on ${ctx.as_of}; ${ctx.farm.crop.toLowerCase()} in the ${ctx.farm.growth_stage.toLowerCase()} stage (day ${ctx.farm.days_after_planting}).`;
+  // Salinity's own steps are folded into the action list at the end when an insight lists them.
+  const salinityText = insight?.recommendations.length ? salinity(ctx).split("\n\n**What to do:**")[0] : salinity(ctx);
+  const parts = [
+    `## Summary\n${lead}`,
+    `## Irrigation\n${irrigation(ctx)}`,
+    `## Salinity\n${salinityText}`,
+    `## Nutrients & pH\n${nutrients(ctx)}\n\n${ph(ctx)}`,
+    `## Weather — next 12 hours\n${weather(ctx)}`,
+    `## Crop & market\n${crop(ctx)}`,
+  ];
+  if (insight?.recommendations.length) {
+    parts.push(
+      `## Recommended actions\n${insight.recommendations
+        .map((r, i) => `${i + 1}. **${r.title}**${r.priority === "high" ? " (high priority)" : ""}${r.detail ? ` — ${r.detail}` : ""}`)
+        .join("\n")}`,
+    );
+  }
+  return parts.join("\n\n");
 }

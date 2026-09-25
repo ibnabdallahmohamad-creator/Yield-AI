@@ -10,6 +10,8 @@ import type { GeoPolygon } from "./geo";
 /** `farms` table row. */
 export interface Farm {
   id: string;
+  /** Account that owns the farm; null for the built-in demo farms. */
+  owner_id?: string | null;
   name: string;
   owner: string;
   lat: number;
@@ -179,16 +181,61 @@ export interface FarmBundle {
   kcAdjusted: { ini: number; mid: number; end: number };
 }
 
-export type DataSource = "supabase" | "mock";
+/**
+ * Where the dashboard data comes from: the account's own farms in Supabase or in the local
+ * `.data/` store, or the built-in demo dataset (demo account and landing page only).
+ */
+export type DataSource = "supabase" | "local" | "demo";
 
 export interface DashboardData {
   generatedAt: string;
   source: DataSource;
-  /** Set when the app fell back to demo data (e.g. Supabase unreachable). */
+  /** Set when the account's data could not be loaded (e.g. Supabase unreachable). */
   sourceNote: string | null;
   weather: { source: "open-meteo" | "unavailable"; note: string | null };
   dates: string[];
   farms: FarmBundle[];
+  /** The account's ESP32 devices (empty for the demo dataset). */
+  devices: Device[];
+}
+
+/** The latest measurement a device sent, kept on the device for status cards. */
+export type DeviceSnapshot = Pick<
+  SensorReading,
+  "timestamp" | "moisture" | "temperature" | "ec" | "ph" | "n" | "p" | "k" | "air_temp" | "air_humidity"
+>;
+
+/** An ESP32 that reports one soil probe over Wi-Fi (`devices` table row, minus the token hash). */
+export interface Device {
+  id: string;
+  owner_id: string;
+  farm_id: string;
+  name: string;
+  /** The probe id its readings are stored under (`sensor_readings.sensor_id`). */
+  sensor_id: string;
+  /** Where the probe sits in the field. */
+  lat: number;
+  lng: number;
+  /** Last four characters of the device key, to tell keys apart. */
+  token_hint: string;
+  created_at: string;
+  /** Last request of any kind (reading or heartbeat). */
+  last_seen_at: string | null;
+  /** Last request that carried a measurement. */
+  last_reading_at: string | null;
+  last_ip: string | null;
+  /** Wi-Fi signal strength reported by the ESP32, dBm. */
+  rssi: number | null;
+  firmware: string | null;
+  /** Last problem the device reported (e.g. "probe timeout"); null once it recovers. */
+  last_error: string | null;
+  last_reading: DeviceSnapshot | null;
+}
+
+/** Per-account preferences. */
+export interface UserSettings {
+  /** How often devices report and the dashboard refreshes, seconds. */
+  reading_interval_s: number;
 }
 
 /** A reading pushed to the dashboard in live mode. */
@@ -203,6 +250,8 @@ export interface LiveUpdate {
   /** Opaque cursor; send it back as `?cursor=` on the next poll. */
   cursor: string;
   feed: "probe" | "simulated" | "idle";
+  /** The account's devices with their latest status (empty for the demo dataset). */
+  devices: Device[];
   /** Local (Asia/Qatar) day that `farms` describes. */
   date: string;
   /** New readings since the previous poll, newest first. */
