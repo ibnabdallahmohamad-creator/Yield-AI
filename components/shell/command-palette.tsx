@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartLine, CornerDownLeft, Cpu, House, LandPlot, ListChecks, Search, Sparkles } from "lucide-react";
+import { ChartLine, CloudSun, CornerDownLeft, Cpu, House, LandPlot, ListChecks, Search, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { HealthDot, RISK_TONE } from "@/components/dashboard/risk-badge";
@@ -54,6 +54,7 @@ export function CommandPalette() {
       ...(current
         ? [{ id: "go-farm", group: "Go to" as const, label: `Trends · ${current.name}`, hint: "Soil and weather charts", icon: <ChartLine />, run: () => router.push(`${sectionHref("farm", current.id)}?tab=trends`) }]
         : []),
+      { id: "go-weather", group: "Go to", label: "Weather", hint: "The forecast across your farms", icon: <CloudSun />, run: () => router.push(sectionHref("weather", farmId)) },
       { id: "go-land", group: "Go to", label: "Land use", hint: "What to use the land for in Qatar", icon: <LandPlot />, run: () => router.push(sectionHref("land", farmId)) },
       { id: "go-devices", group: "Go to", label: "Farms & devices", hint: "Add a farm, connect an ESP32", icon: <Cpu />, run: () => router.push("/dashboard/devices") },
       { id: "go-assistant", group: "Go to", label: "Assistant", hint: "Chat history", icon: <Sparkles />, run: () => router.push(sectionHref("assistant", farmId)) },

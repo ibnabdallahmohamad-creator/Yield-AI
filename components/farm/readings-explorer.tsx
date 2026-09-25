@@ -118,7 +118,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="min-w-0 rounded-xl bg-muted/50 px-3 py-2.5">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 truncate text-lg font-semibold">{value}</p>
+      <p className="mt-0.5 truncate text-xl font-semibold">{value}</p>
       {sub ? <p className="truncate text-xs text-muted-foreground">{sub}</p> : null}
     </div>
   );

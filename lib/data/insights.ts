@@ -21,7 +21,9 @@ import {
   trend,
   type ProbeExtreme,
 } from "../ai/analysis";
+import { formatLongWeekday } from "../format";
 import type { DashboardData, FarmBundle, FarmDay, RiskPoint } from "../types";
+import { addDays } from "./time";
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -159,9 +161,16 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
     }
   }
 
-  if (lossy && ece != null) {
+  // "today" / "tomorrow" / "on Sunday": the same days as the irrigation schedule (which says "Sun").
+  const dueIn = (days: number) =>
+    days < 0.5 ? "today" : days < 1.5 ? "tomorrow" : days < 6.5 ? `on ${formatLongWeekday(addDays(day.date, Math.round(days)))}` : `in about ${fmt(days, 0)} days`;
+  // A salty farm's next irrigation is the leaching one: it says when, and there's no separate "Next irrigation".
+  const leaching = lossy && ece != null;
+  const leachWhen = !stressed && day.daysToIrrigation != null ? ` ${dueIn(day.daysToIrrigation)}` : "";
+
+  if (leaching) {
     recs.push({
-      title: `Apply a leaching irrigation (+${fmt(lrPct, 0)}% water)`,
+      title: `Apply a leaching irrigation${leachWhen} (+${fmt(lrPct, 0)}% water)`,
       detail: `Irrigate ${fmt(day.grossDepth, 0)} mm instead of ${fmt(day.netDepth, 0)} mm at the next cycle to flush salt. With irrigation water at ECw ${fmt(farm.irrigation_water_ec)} dS/m, a leaching requirement of ${fmt(lrPct, 0)}% keeps root-zone ECe near ${fmt(day.eceTarget)} dS/m (FAO-29 Eq. 7, 90% yield target).`,
       priority: "high",
     });
@@ -187,11 +196,9 @@ function buildRecommendations(f: FarmFacts): Recommendation[] {
     });
   }
 
-  if (!stressed && day.daysToIrrigation != null && day.netDepth != null) {
-    const when =
-      day.daysToIrrigation < 0.5 ? "today" : day.daysToIrrigation < 1.5 ? "in about a day" : `in about ${fmt(day.daysToIrrigation, 0)} days`;
+  if (!stressed && !leaching && day.daysToIrrigation != null && day.netDepth != null) {
     recs.push({
-      title: `Next irrigation ${when}: ${fmt(day.grossDepth, 0)} mm`,
+      title: `Next irrigation ${dueIn(day.daysToIrrigation)}: ${fmt(day.grossDepth, 0)} mm`,
       detail: `The crop has used ${fmt(day.dr, 0)} of the ${fmt(day.raw, 0)} mm of water it can easily reach, at ${fmt(day.etc)} mm a day. Apply ${fmt(day.netDepth, 0)} mm to refill the root zone${leachText(day)}.`,
       priority: day.daysToIrrigation < 1 ? "medium" : "low",
     });

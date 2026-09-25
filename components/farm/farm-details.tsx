@@ -6,7 +6,7 @@
  * the next 12 hours) · Advice (the full assessment) · Trends (charts at full size) · Probes (the
  * daily table per probe, or every reading) · Method. Tab, chart and view live in the URL.
  */
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Next12hCard } from "@/components/charts/next-12h-card";
 import { SoilWeatherCard } from "@/components/charts/soil-weather-card";
 import { RiskBadge } from "@/components/dashboard/risk-badge";
@@ -32,6 +32,7 @@ import type { MetricKey } from "@/lib/metrics";
 import type { QatarLocation } from "@/lib/qatar/location";
 import { FARM_TABS, replaceUrl, type FarmTab, type ProbesView } from "@/lib/routes";
 import type { DashboardData, FarmBundle } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export function FarmDetails({
   data: serverData,
@@ -133,7 +134,7 @@ export function FarmDetails({
     farm.region,
     ...(day ? [`${GROWTH_STAGE_LABEL[day.stage].toLowerCase()}, day ${day.dap}`] : []),
     plural(bundle.sensors.length, "probe"),
-  ].join(" · ");
+  ];
   const markers = compare
     ? [
         { index: thenIndex, label: "Then" },
@@ -149,7 +150,18 @@ export function FarmDetails({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="font-display text-[1.75rem] leading-tight font-semibold tracking-tight">{farm.name}</h1>
         {insight ? <RiskBadge level={insight.risk_level} score={Math.round(insight.risk_score)} /> : null}
-        <p className="w-full text-sm text-muted-foreground">{facts}</p>
+        {/* Lines break only between facts, never inside "6 probes". */}
+        <p className="w-full text-sm text-muted-foreground">
+          {facts.map((f, i) => (
+            <Fragment key={f}>
+              {i > 0 ? " " : null}
+              <span className="whitespace-nowrap">
+                {f}
+                {i < facts.length - 1 ? " ·" : null}
+              </span>
+            </Fragment>
+          ))}
+        </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as FarmTab)} className="mt-3 gap-5">
@@ -169,7 +181,7 @@ export function FarmDetails({
           ))}
         </TabsList>
 
-        <TabsContent value="today" className="yai-enter space-y-4 lg:space-y-6">
+        <TabsContent value="today" className="yai-enter flex flex-col gap-4 lg:gap-6">
           {waiting ? (
             <section aria-label="Waiting for readings" className="rounded-2xl border bg-card shadow-xs">
               <GetStarted hasFarms device={farmDevice ? { name: farmDevice.name, paired: Boolean(farmDevice.paired_at) } : null} />
@@ -185,7 +197,14 @@ export function FarmDetails({
               className="md:grid-cols-4"
             />
           )}
-          <div className="grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+          {/* Below xl the pair dissolves into the column (contents), so on phones "What to do" can lead. */}
+          <div className="contents xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch xl:gap-6">
+            <WhatToDo
+              bundle={bundle}
+              limit={4}
+              onAllActions={() => openTab("advice")}
+              className={cn("xl:col-start-2 xl:row-start-1", !waiting && "max-md:order-first")}
+            />
             <OverviewMap
               farms={[bundle]}
               bundle={bundle}
@@ -205,9 +224,8 @@ export function FarmDetails({
               single
               // Header, tabs and KPIs take ~400px: the map fills the rest of the first screen.
               heightClassName="h-[max(320px,45vh)] lg:h-[clamp(360px,calc(100dvh-400px),620px)]"
-              className="order-2 xl:order-none"
+              className="xl:col-start-1 xl:row-start-1"
             />
-            <WhatToDo bundle={bundle} onAllActions={() => openTab("advice")} className="order-1 xl:order-none" />
           </div>
           {waiting ? null : (
             <SoilWeatherCard bundle={bundle} farms={data.farms} dates={dates} index={last} tab={chart} onTabChange={changeChart} markers={markers} />

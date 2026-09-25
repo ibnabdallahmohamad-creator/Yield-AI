@@ -34,7 +34,8 @@ import { CROPS, ECE_CLASSES } from "@/lib/agronomy-tables";
 import { extremeProbe, trend } from "@/lib/ai/analysis";
 import { nutrientSummary, soilRows, triggerSeries, type SoilRow } from "@/lib/charts";
 import { NUTRIENT_GUIDE, type NutrientKey } from "@/lib/crop-guides";
-import { irrigationPlan, type ChartOverlay } from "@/lib/dashboard";
+import { irrigationPlan, moistureLimitsPct, triggerMoisturePct, type ChartOverlay } from "@/lib/dashboard";
+import { addDays } from "@/lib/data/time";
 import { formatDay, fmtNum, plural } from "@/lib/format";
 import { classFor, METRICS } from "@/lib/metrics";
 import type { FarmBundle, FarmDay } from "@/lib/types";
@@ -71,8 +72,16 @@ function relChange(from: number | null | undefined, to: number | null | undefine
 
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(0)}%`;
 
+type ChartRowX = SoilRow & {
+  ref?: number | null;
+  /** A shaded range between two series (e.g. the readily available water, trigger → field capacity). */
+  zone?: [number, number] | null;
+  /** Projected values after the last reading (dashed). */
+  proj?: number | null;
+};
+
 interface SoilChartProps {
-  rows: Array<SoilRow & { ref?: number | null }>;
+  rows: ChartRowX[];
   dates: string[];
   end: number;
   scale: Scale;
@@ -92,6 +101,14 @@ interface SoilChartProps {
   syncId?: string;
   showXAxis?: boolean;
   narrow?: boolean;
+  /** Fixed reference lines (field capacity, wilting point). */
+  hlines?: Array<{ y: number; color: string }>;
+  zone?: { color: string; label: string } | null;
+  projection?: { label: string } | null;
+  /** Vertical event markers after today (e.g. the next irrigation). */
+  events?: Array<{ date: string; label: string }>;
+  /** The last day with data, when rows run past it (projection). */
+  lastDate?: string;
 }
 
 function SoilChart({
@@ -115,6 +132,11 @@ function SoilChart({
   syncId,
   showXAxis = true,
   narrow = false,
+  hlines = [],
+  zone = null,
+  projection = null,
+  events = [],
+  lastDate,
 }: SoilChartProps) {
   const today = dates[dates.length - 1];
   const first = rows.find((r) => r.value != null)?.value ?? null;
@@ -133,7 +155,7 @@ function SoilChart({
           <XAxis
             dataKey="date"
             ticks={xTicks(rows.map((r) => r.date))}
-            tickFormatter={(d: string) => (d === today ? "Today" : formatX(d))}
+            tickFormatter={(d: string) => (d === (lastDate ?? today) ? "Today" : formatX(d))}
             tick={AXIS_TICK}
             tickLine={false}
             axisLine={{ stroke: C.grid }}
@@ -150,6 +172,10 @@ function SoilChart({
             tickLine={false}
             axisLine={false}
           />
+          {zone ? <Area dataKey="zone" stroke="none" fill={zone.color} fillOpacity={0.16} isAnimationActive={false} connectNulls activeDot={false} /> : null}
+          {hlines.map((h) => (
+            <ReferenceLine key={h.y} y={h.y} stroke={h.color} strokeWidth={1} strokeDasharray="2 3" ifOverflow="extendDomain" />
+          ))}
           {hasRange && !showProbes ? (
             <Area dataKey="range" stroke="none" fill={C.range} fillOpacity={0.25} isAnimationActive={false} connectNulls activeDot={false} />
           ) : null}
@@ -182,6 +208,29 @@ function SoilChart({
             connectNulls
             animationDuration={300}
           />
+          {projection ? (
+            <Line
+              dataKey="proj"
+              stroke={C.mean}
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              strokeOpacity={0.75}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
+              connectNulls
+              isAnimationActive={false}
+            />
+          ) : null}
+          {lastDate && lastDate !== rows[rows.length - 1]?.date ? <ReferenceLine x={lastDate} stroke={C.today} strokeWidth={1} strokeOpacity={0.5} /> : null}
+          {events.map((e) => (
+            <ReferenceLine
+              key={e.date}
+              x={e.date}
+              stroke={C.rain}
+              strokeWidth={1.5}
+              label={{ value: e.label, position: "insideTopRight", fontSize: 12, fontWeight: 600, fill: C.rain }}
+            />
+          ))}
           {markers
             .filter((m) => m.index >= start && m.index <= end && m.index !== end)
             .map((m) => (
@@ -200,12 +249,17 @@ function SoilChart({
             content={(props) => {
               const p = props as TooltipContentProps<number, string>;
               if (!p.active || !p.payload?.length) return null;
-              const row = p.payload[0]?.payload as (SoilRow & { ref?: number | null }) | undefined;
+              const row = p.payload[0]?.payload as ChartRowX | undefined;
               if (!row) return null;
               const change = relChange(first, row.value);
               return (
                 <TooltipShell title={formatDay(row.date)}>
-                  {row.value == null ? (
+                  {row.value == null && projection && row.proj != null ? (
+                    <>
+                      <TooltipRow label={projection.label} value={fmt(row.proj)} color={C.mean} kind="dash" />
+                      {refLine && row.ref != null ? <TooltipRow label={refLine.label} value={fmt(row.ref)} color={C.threshold} kind="dash" muted /> : null}
+                    </>
+                  ) : row.value == null ? (
                     <p className="text-muted-foreground">No readings</p>
                   ) : (
                     <>
@@ -213,6 +267,7 @@ function SoilChart({
                       {classOf && classOf(row.value) ? <TooltipRow label="Class" value={classOf(row.value) ?? ""} muted /> : null}
                       {row.range ? <TooltipRow label="Probe range" value={`${fmtNum(row.range[0], decimals)}–${fmtNum(row.range[1], decimals)}`} color={C.range} kind="band" muted /> : null}
                       {refLine && row.ref != null ? <TooltipRow label={refLine.label} value={fmt(row.ref)} color={C.threshold} kind="dash" muted /> : null}
+                      {zone && row.zone ? <TooltipRow label={zone.label} value={`${fmtNum(row.zone[0], decimals)}–${fmtNum(row.zone[1], decimals)}`} color={zone.color} kind="band" muted /> : null}
                       {overlayLabel && row.overlay != null ? <TooltipRow label={overlayLabel} value={fmt(row.overlay)} color={C.overlay} kind="dash" /> : null}
                       {change != null && row.date !== rows[0]?.date ? <TooltipRow label="Since start of range" value={pct(change)} muted /> : null}
                     </>
@@ -346,19 +401,49 @@ export function SalinityPanel(p: PanelProps) {
 // Moisture
 // ---------------------------------------------------------------------------
 
+/**
+ * The days after the last reading: moisture falls by the crop's water use (ETc spread over the root
+ * zone) until it reaches the irrigation trigger, the day the plan says to irrigate.
+ */
+function dryDown(bundle: FarmBundle, day: FarmDay, date: string): Array<{ date: string; proj: number; ref: number | null }> {
+  if (day.moisture == null || day.etc == null || !(day.rootDepth > 0) || day.daysToIrrigation == null) return [];
+  const perDay = (day.etc / (1000 * day.rootDepth)) * 100;
+  const ref = triggerMoisturePct(bundle.farm, day);
+  const until = Math.min(10, Math.max(1, Math.ceil(day.daysToIrrigation)));
+  const out: Array<{ date: string; proj: number; ref: number | null }> = [];
+  for (let k = 1; k <= until; k++) out.push({ date: addDays(date, k), proj: Math.max(0, day.moisture - perDay * Math.min(k, day.daysToIrrigation)), ref });
+  return out;
+}
+
 export function MoisturePanel(p: PanelProps) {
   const { bundle, dates, start, end } = p;
-  const rows = useMemo(() => {
-    const base = soilRows(bundle, dates, start, end, (d) => d.moisture, (s) => s.moisture, p.overlay);
-    const trigger = triggerSeries(bundle, start, end);
-    return base.map((r, i) => ({ ...r, ref: trigger[i] }));
-  }, [bundle, dates, start, end, p.overlay]);
-  const scale = useMemo(
-    () => niceScale(rows.flatMap((r) => [r.value, r.range?.[0], r.range?.[1], r.ref, r.overlay]), { minSpan: 20, zero: true }),
-    [rows],
-  );
   const latest = latestIn(bundle, start, end);
   const d = latest?.day ?? null;
+  const limits = moistureLimitsPct(bundle.farm);
+  // Only project from today's reading, not when the window ends in the past.
+  const projecting = latest != null && latest.index === dates.length - 1;
+  const rows = useMemo(() => {
+    const base = soilRows(bundle, dates, start, end, (x) => x.moisture, (s) => s.moisture, p.overlay);
+    const trigger = triggerSeries(bundle, start, end);
+    const past: ChartRowX[] = base.map((r, i) => ({ ...r, ref: trigger[i], zone: trigger[i] != null ? [trigger[i]!, limits.fc] : null }));
+    if (!projecting || !latest) return past;
+    const last = past.findLastIndex((r) => r.value != null);
+    if (last >= 0) past[last] = { ...past[last], proj: past[last].value };
+    const future: ChartRowX[] = dryDown(bundle, latest.day, dates[latest.index]).map((f) => ({
+      date: f.date,
+      value: null,
+      range: null,
+      overlay: null,
+      ref: f.ref,
+      zone: f.ref != null ? [f.ref, limits.fc] : null,
+      proj: f.proj,
+    }));
+    return [...past, ...future];
+  }, [bundle, dates, start, end, p.overlay, limits.fc, projecting, latest]);
+  const scale = useMemo(
+    () => niceScale(rows.flatMap((r) => [r.value, r.range?.[0], r.range?.[1], r.ref, r.overlay, r.proj, limits.fc, limits.wp]), { minSpan: 20, zero: true }),
+    [rows, limits.fc, limits.wp],
+  );
   const t = trend(bundle, latest?.index ?? end, end - start + 1, (x) => x.moisture);
   const change = t.changePct;
   const plan = irrigationPlan(d, dates, latest?.index ?? end);
@@ -366,6 +451,14 @@ export function MoisturePanel(p: PanelProps) {
   const days = t.days;
   const stressed = (d?.deficitPct ?? 0) > 100;
   const lastRef = [...rows].reverse().find((r) => r.ref != null)?.ref ?? null;
+  const irrigateDate =
+    projecting && latest && d?.daysToIrrigation != null && plan.grossMm != null ? addDays(dates[latest.index], Math.max(1, Math.ceil(d.daysToIrrigation))) : null;
+  const moistureLabels: MarginLabel[] = [
+    { y: limits.fc, text: p.narrow ? "Full" : "Field capacity", tone: "adequate" },
+    { y: limits.wp, text: p.narrow ? "Wilting" : "Wilting point", tone: "threshold" },
+    ...(lastRef != null ? [{ y: lastRef, text: p.narrow ? "Irrigate" : "Irrigate below", tone: "threshold" as const }] : []),
+    ...(lastRef != null ? [{ y: (lastRef + limits.fc) / 2, text: p.narrow ? "Easy" : "Easy to take up", tone: "muted" as const }] : []),
+  ];
 
   return (
     <div>
@@ -389,8 +482,16 @@ export function MoisturePanel(p: PanelProps) {
         height={p.height}
         ariaLabel={`Soil moisture for ${bundle.farm.name}, last ${days} days`}
         refLine={{ label: "Irrigate below" }}
-        marginLabels={lastRef != null ? [{ y: lastRef, text: p.narrow ? "Irrigate" : "Irrigate below", tone: "threshold" }] : []}
+        marginLabels={moistureLabels}
         narrow={p.narrow}
+        hlines={[
+          { y: limits.fc, color: C.adequate },
+          { y: limits.wp, color: C.threshold },
+        ]}
+        zone={{ color: C.adequate, label: "Readily available water" }}
+        projection={projecting ? { label: "Projected (crop water use)" } : null}
+        events={irrigateDate ? [{ date: irrigateDate, label: `Irrigate ${plan.grossMm} mm` }] : []}
+        lastDate={projecting && latest ? dates[latest.index] : undefined}
         markers={p.markers}
         overlayLabel={p.overlayLabel}
         probeIds={probeIdsOf(bundle)}
@@ -401,7 +502,9 @@ export function MoisturePanel(p: PanelProps) {
         items={[
           { kind: "line", color: C.mean, label: "Farm mean" },
           ...(p.showProbes ? [{ kind: "line" as const, color: PROBE_COLORS[0], label: "Each probe" }] : [{ kind: "band" as const, color: C.range, label: "Probe range" }]),
-          { kind: "dash", color: C.threshold, label: "Irrigation trigger (readily available water used up)" },
+          { kind: "band", color: C.adequate, label: "Readily available water" },
+          { kind: "dash", color: C.threshold, label: "Irrigation trigger" },
+          ...(projecting ? [{ kind: "dash" as const, color: C.mean, label: "Projected until irrigation" }] : []),
           ...(p.overlayLabel ? [{ kind: "dash" as const, color: C.overlay, label: p.overlayLabel }] : []),
         ]}
       />

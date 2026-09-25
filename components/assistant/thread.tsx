@@ -305,7 +305,7 @@ export function EmptyState({ farm, onAsk, disabled }: { farm: AssistantFarm | nu
                 type="button"
                 disabled={disabled}
                 onClick={() => onAsk(p)}
-                className="group flex h-full min-h-16 w-full items-start justify-between gap-3 rounded-2xl border bg-card p-4 text-left text-sm text-foreground shadow-xs transition-[border-color,background-color,transform] duration-150 hover:border-primary/40 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:translate-y-px disabled:opacity-50 motion-reduce:transition-none"
+                className="group flex h-full w-full items-center justify-between gap-3 rounded-2xl sm:min-h-16 sm:items-start border bg-card p-4 text-left text-sm text-foreground shadow-xs transition-[border-color,background-color,transform] duration-150 hover:border-primary/40 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:translate-y-px disabled:opacity-50 motion-reduce:transition-none"
               >
                 <span>{p}</span>
                 <ArrowRight

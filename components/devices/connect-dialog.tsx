@@ -233,7 +233,7 @@ export function ConnectDialog({
                   <p className="text-sm text-muted-foreground">Pairing code</p>
                   {codeValid ? (
                     <>
-                      <p className="mt-1 font-mono text-3xl font-bold tracking-[0.2em] tabular" aria-label={`Pairing code ${device.pairing_code?.split("").join(" ")}`}>
+                      <p className="mt-1 font-mono text-[1.75rem] font-bold tracking-[0.2em] tabular" aria-label={`Pairing code ${device.pairing_code?.split("").join(" ")}`}>
                         {formatPairingCode(device.pairing_code!)}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">

@@ -5,9 +5,11 @@
  * and markets (live research or the built-in reference), the site and its climate, and the national
  * food-security goals the options serve.
  */
-import { ExternalLink, Globe, MapPin, Newspaper, Target, ThermometerSun, Trophy } from "lucide-react";
+import { ChevronDown, ExternalLink, Globe, MapPin, Newspaper, Target, ThermometerSun, Trophy } from "lucide-react";
+import { useState } from "react";
 import { HealthDot } from "@/components/dashboard/risk-badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { PHONE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import type { HealthTone } from "@/lib/dashboard";
 import { formatDay, formatTime, qatarDay } from "@/lib/format";
 import type { FactorKey, LandReport, LandResearch, RankedOption } from "@/lib/land/contract";
@@ -194,7 +196,7 @@ function Options({ report }: { report: LandReport }) {
               <span className="flex min-w-0 flex-1 items-start gap-3">
                 <span className="w-5 shrink-0 text-sm font-semibold text-muted-foreground tabular">{i + 1}.</span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3">
                     <span>{o.name}</span>
                     <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground tabular">
                       <HealthDot tone={o.blocked ? "bad" : FIT[o.fit].tone} className="ring-0" />
@@ -455,21 +457,44 @@ function MarketNow({ report }: { report: LandReport }) {
   );
 }
 
+/** Phones: the background sections wait behind one row, so the answer isn't followed by pages of context. */
+function PhoneFold({ label, children }: { label: string; children: React.ReactNode }) {
+  const phone = useMediaQuery(PHONE_QUERY);
+  const [open, setOpen] = useState(false);
+  if (!phone || open) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      aria-expanded={false}
+      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border bg-card px-5 text-left text-sm font-semibold shadow-xs focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+    >
+      {label}
+      <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    </button>
+  );
+}
+
 export function LandReportView({ report }: { report: LandReport }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:gap-6">
       <BestUse report={report} />
       <Options report={report} />
-      <div className="grid grid-cols-1 gap-4 lg:gap-6 2xl:grid-cols-2">
-        <Research research={report.research} />
-        <div className="grid grid-cols-1 content-start gap-4 lg:gap-6">
-          <Goals report={report} />
-          <MarketNow report={report} />
+      <PhoneFold label="News, markets, 2030 goals and the site">
+        <div className="grid grid-cols-1 gap-4 lg:gap-6 2xl:grid-cols-2">
+          <Research research={report.research} />
+          <div className="grid grid-cols-1 content-start gap-4 lg:gap-6">
+            <Goals report={report} />
+            <MarketNow report={report} />
+          </div>
         </div>
-      </div>
-      <Site report={report} />
-      <details className="rounded-2xl border bg-card px-5 shadow-xs sm:px-6">
-        <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold">How the ranking works</summary>
+        <Site report={report} />
+      </PhoneFold>
+      <details className="group rounded-2xl border bg-card px-5 shadow-xs sm:px-6">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          How the ranking works
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
         <ul className="list-disc space-y-1 pb-5 pl-5 text-sm leading-relaxed text-pretty text-muted-foreground">
           {report.method.map((m) => (
             <li key={m}>{m}</li>

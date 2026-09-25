@@ -4,6 +4,9 @@
  * The Overview map (ui_improvement §7.1): one layer dropdown, a ⧉ Layers popover for the base map
  * and live updates, icon-only extent buttons, a static legend chip, and History (the timeline and
  * Then-vs-Now compare) in a sheet over the map instead of always on screen.
+ *
+ * The menu's Weather forecast group (wind, temperature, rain, humidity, …) swaps the soil map for
+ * the Windy-style weather map (components/weather): the Gulf forecast with an hourly timeline.
  */
 import {
   Crosshair,
@@ -40,6 +43,13 @@ import { formatShortDay } from "@/lib/format";
 import { computeDelta, METRICS, type MetricKey } from "@/lib/metrics";
 import type { FarmBundle } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { WEATHER_LAYERS, type WeatherLayerKey } from "@/lib/weather/layers";
+import { usePlayback } from "@/components/weather/use-playback";
+import { useWeatherGrid } from "@/components/weather/use-weather-grid";
+import { DEFAULT_WEATHER_OPTIONS, WeatherOptions, type WeatherOptionsState } from "@/components/weather/weather-options";
+import { WEATHER_LAYER_ICON } from "@/components/weather/layer-icons";
+import { WeatherLegend } from "@/components/weather/weather-legend";
+import { WeatherStage } from "@/components/weather/weather-stage";
 
 const SINGLE_PADDING: MapPadding = { top: 72, right: 64, bottom: 72, left: 48 };
 const COMPARE_PADDING: MapPadding = { top: 96, right: 48, bottom: 48, left: 40 };
@@ -68,6 +78,10 @@ const LAYER_GROUPS: { label: string; items: { value: MetricKey; label: string; i
   },
 ];
 
+/** The weather layers in the same menu; their values carry a `wx:` prefix. */
+const WX = "wx:";
+const WEATHER_ITEMS: WeatherLayerKey[] = ["wind", "temp", "rain", "rh", "gust", "feels", "precipProb", "clouds", "pressure"];
+
 const LIVE_TEXT = {
   off: "Off",
   connecting: "Connecting…",
@@ -94,6 +108,47 @@ function IconTip({ label, children }: { label: string; children: React.ReactElem
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** The soil map's ⧉ options: base map and live updates. */
+function SoilMapOptions({
+  basemap,
+  onBasemap,
+  liveId,
+  liveText,
+  live,
+  onLive,
+}: {
+  basemap: Basemap;
+  onBasemap: (b: Basemap) => void;
+  liveId: string;
+  liveText: string;
+  live: boolean;
+  onLive: (on: boolean) => void;
+}) {
+  return (
+    <>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">Base map</p>
+        <Segmented
+          ariaLabel="Base map"
+          value={basemap}
+          onChange={onBasemap}
+          options={[
+            { value: "satellite", label: "Satellite", icon: <SatelliteIcon /> },
+            { value: "streets", label: "Streets", icon: <MapIcon /> },
+          ]}
+        />
+      </div>
+      <div className="flex items-start justify-between gap-3 border-t pt-4">
+        <label htmlFor={liveId} className="cursor-pointer">
+          <span className="block text-sm font-semibold">Live updates</span>
+          <span className="block text-xs text-muted-foreground">{liveText}</span>
+        </label>
+        <Switch id={liveId} checked={live} onCheckedChange={onLive} />
+      </div>
+    </>
   );
 }
 
@@ -155,6 +210,16 @@ export function OverviewMap({
   const metric = METRICS[metricKey];
   const last = dates.length - 1;
   const farm = bundle?.farm ?? null;
+  // Weather mode: the regional forecast instead of the soil map.
+  const [weatherLayer, setWeatherLayer] = useState<WeatherLayerKey | null>(null);
+  const [wxOptions, setWxOptions] = useState<WeatherOptionsState>(DEFAULT_WEATHER_OPTIONS);
+  const [wxPin, setWxPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [wxFit, setWxFit] = useState(0);
+  const [wxFocus, setWxFocus] = useState(0);
+  const grid = useWeatherGrid(weatherLayer != null);
+  const playback = usePlayback(grid.field?.nt ?? 1);
+  const wxFarms = useMemo(() => farms.map((b) => ({ id: b.farm.id, name: b.farm.name, lat: b.farm.lat, lng: b.farm.lng })), [farms]);
+  const wxHome = farm ? { lat: farm.lat, lng: farm.lng, name: farm.name } : { lat: 25.29, lng: 51.53, name: "Doha" };
   // Deselecting (portfolio view) zooms back out to every farm.
   const [prevFarmId, setPrevFarmId] = useState(farm?.id ?? null);
   if ((farm?.id ?? null) !== prevFarmId) {
@@ -261,12 +326,37 @@ export function OverviewMap({
         className={cn(
           // isolate: keeps Leaflet's z-indexes (400–1000) below sheets, menus and tooltips.
           "relative isolate grid",
-          compare
+          // The floating History button owns the bottom-right corner: the map credit wraps before it.
+          !phone && !historyOpen && "[&_.leaflet-bottom.leaflet-left]:right-28",
+          compare && !weatherLayer
             ? "h-[min(84vh,720px)] grid-rows-2 sm:h-[clamp(360px,calc(100dvh-340px),620px)] sm:grid-cols-2 sm:grid-rows-1"
             : cn("grid-cols-1", heightClassName),
         )}
       >
-        {compare ? (
+        {weatherLayer ? (
+          <WeatherStage
+            field={grid.field}
+            error={grid.error}
+            onRetry={grid.retry}
+            layer={weatherLayer}
+            farms={wxFarms}
+            selectedId={farm?.id ?? null}
+            onSelectFarm={onSelect}
+            options={wxOptions}
+            t={playback.t}
+            onT={playback.setT}
+            playing={playback.playing}
+            onPlayingChange={playback.setPlaying}
+            pin={wxPin}
+            onPin={setWxPin}
+            focus={wxHome}
+            fitSignal={wxFit}
+            focusSignal={wxFocus}
+            initialFocus={farm ? { lat: farm.lat, lng: farm.lng, zoom: 9 } : null}
+            compact
+          />
+        ) : null}
+        {!weatherLayer && compare ? (
           <div className="relative min-h-0 border-b sm:border-r sm:border-b-0">
             <FarmMap
               farms={thenFarms}
@@ -286,32 +376,47 @@ export function OverviewMap({
             <MapChip className="absolute top-16 left-3 z-[1000]">Then · {formatShortDay(dates[thenIndex])}</MapChip>
           </div>
         ) : null}
-        <div className="relative min-h-0">
-          <FarmMap
-            farms={mapFarms}
-            metric={metric}
-            selectedId={farm?.id ?? null}
-            onSelect={onSelect}
-            basemap={basemap}
-            pulse={pulse}
-            role="leader"
-            sync={compare ? sync : null}
-            fitAllSignal={fitAllSignal}
-            focusSignal={focusSignal}
-            onFieldViewChange={setFieldView}
-            showSelectedName={!single}
-            padding={compare ? COMPARE_PADDING : SINGLE_PADDING}
-            scrollWheelZoom={false}
-            touchDrag={false}
-            gestureZoom
-            attributionPosition="bottomleft"
-          />
-          {compare ? <MapChip className="absolute top-16 left-3 z-[1000]">Now · {formatShortDay(dates[dateIndex])}</MapChip> : null}
-        </div>
+        {weatherLayer ? null : (
+          <div className="relative min-h-0">
+            <FarmMap
+              farms={mapFarms}
+              metric={metric}
+              selectedId={farm?.id ?? null}
+              onSelect={onSelect}
+              basemap={basemap}
+              pulse={pulse}
+              role="leader"
+              sync={compare ? sync : null}
+              fitAllSignal={fitAllSignal}
+              focusSignal={focusSignal}
+              onFieldViewChange={setFieldView}
+              showSelectedName={!single}
+              padding={compare ? COMPARE_PADDING : SINGLE_PADDING}
+              scrollWheelZoom={false}
+              touchDrag={false}
+              gestureZoom
+              attributionPosition="bottomleft"
+            />
+            {compare ? <MapChip className="absolute top-16 left-3 z-[1000]">Now · {formatShortDay(dates[dateIndex])}</MapChip> : null}
+          </div>
+        )}
 
         {/* Top row: the layer, then the map options and extent next to Leaflet's zoom buttons. */}
         <div className="pointer-events-none absolute inset-x-2.5 top-2.5 z-[1000] flex items-start gap-2">
-          <Select value={metricKey} onValueChange={(v) => onMetricChange(v as MetricKey)}>
+          <Select
+            value={weatherLayer ? `${WX}${weatherLayer}` : metricKey}
+            onValueChange={(v) => {
+              if (v.startsWith(WX)) {
+                setWeatherLayer(v.slice(WX.length) as WeatherLayerKey);
+                if (historyOpen) onHistoryOpenChange(false);
+                if (compare) onCompareChange(false);
+              } else {
+                playback.setPlaying(false);
+                setWeatherLayer(null);
+                onMetricChange(v as MetricKey);
+              }
+            }}
+          >
             <SelectTrigger aria-label="Map layer" className="pointer-events-auto h-11 min-w-0 bg-card/95 font-medium shadow-md backdrop-blur-sm sm:h-9 sm:pointer-coarse:h-11">
               <SelectValue />
             </SelectTrigger>
@@ -328,6 +433,19 @@ export function OverviewMap({
                   ))}
                 </SelectGroup>
               ))}
+              <SelectGroup>
+                <SelectSeparator />
+                <SelectLabel>Weather forecast</SelectLabel>
+                {WEATHER_ITEMS.map((key) => {
+                  const Icon = WEATHER_LAYER_ICON[key];
+                  return (
+                    <SelectItem key={key} value={`${WX}${key}`} className="min-h-9">
+                      <Icon />
+                      {WEATHER_LAYERS[key].label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectGroup>
             </SelectContent>
           </Select>
           <div className="pointer-events-auto mr-[54px] ml-auto flex gap-2 sm:mr-[42px] sm:pointer-coarse:mr-[54px]">
@@ -339,36 +457,37 @@ export function OverviewMap({
                   </Button>
                 </PopoverTrigger>
               </IconTip>
-              <PopoverContent align="end" className="w-64 space-y-4">
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Base map</p>
-                  <Segmented
-                    ariaLabel="Base map"
-                    value={basemap}
-                    onChange={setBasemap}
-                    options={[
-                      { value: "satellite", label: "Satellite", icon: <SatelliteIcon /> },
-                      { value: "streets", label: "Streets", icon: <MapIcon /> },
-                    ]}
-                  />
-                </div>
-                <div className="flex items-start justify-between gap-3 border-t pt-4">
-                  <label htmlFor={liveId} className="cursor-pointer">
-                    <span className="block text-sm font-semibold">Live updates</span>
-                    <span className="block text-xs text-muted-foreground">{LIVE_TEXT[liveStatus]}</span>
-                  </label>
-                  <Switch
-                    id={liveId}
-                    checked={live}
-                    onCheckedChange={(on) => {
+              <PopoverContent align="end" className={cn("space-y-4", weatherLayer ? "w-72" : "w-64")}>
+                {weatherLayer ? (
+                  <WeatherOptions value={wxOptions} onChange={setWxOptions} hasIsolines={Boolean(WEATHER_LAYERS[weatherLayer].isolines)} />
+                ) : (
+                  <SoilMapOptions
+                    basemap={basemap}
+                    onBasemap={setBasemap}
+                    liveId={liveId}
+                    liveText={LIVE_TEXT[liveStatus]}
+                    live={live}
+                    onLive={(on) => {
                       setLive(on);
                       if (on) onDateIndex(last);
                     }}
                   />
-                </div>
+                )}
               </PopoverContent>
             </Popover>
-            {single ? (
+            {weatherLayer ? (
+              <IconTip label={farm ? `Zoom to ${farm.name}` : "Show all of Qatar"}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={MAP_BUTTON}
+                  aria-label={farm ? `Zoom to ${farm.name}` : "Show all of Qatar"}
+                  onClick={() => (farm ? setWxFocus((n) => n + 1) : setWxFit((n) => n + 1))}
+                >
+                  {farm ? <Crosshair /> : <Maximize2 />}
+                </Button>
+              </IconTip>
+            ) : single ? (
               <IconTip label="Re-centre the field">
                 <Button variant="outline" size="icon" className={MAP_BUTTON} aria-label="Re-centre the field" onClick={() => setFocusSignal((n) => n + 1)}>
                   <Crosshair />
@@ -390,7 +509,7 @@ export function OverviewMap({
           </div>
         </div>
 
-        {viewingPast && !historyOpen ? (
+        {viewingPast && !historyOpen && !weatherLayer ? (
           <div className="absolute top-16 left-2.5 z-[1000] sm:top-2.5 sm:left-1/2 sm:-translate-x-1/2">
             <div className="flex h-11 items-center gap-1 rounded-full bg-forest-900/95 pl-3 text-sm text-primary-foreground shadow-md sm:h-9 sm:pointer-coarse:h-11">
               <span className="font-medium whitespace-nowrap">Viewing {formatShortDay(dates[dateIndex])}</span>
@@ -406,24 +525,28 @@ export function OverviewMap({
           </div>
         ) : null}
 
-        {!historyOpen && !compare ? (
+        {!historyOpen && !compare && !weatherLayer ? (
           <MapLegend metric={metric} marker={legendMarker} variant="chip" className="absolute bottom-8 left-2.5 z-[1000] hidden sm:block" />
         ) : null}
 
-        {overlay && !historyOpen && !compare ? <div className="absolute top-16 left-2.5 z-[1000] w-[min(20rem,calc(100%-1.25rem))]">{overlay}</div> : null}
+        {overlay && !historyOpen && !compare && !(weatherLayer && wxPin) ? <div className="absolute top-16 left-2.5 z-[1000] w-[min(20rem,calc(100%-1.25rem))]">{overlay}</div> : null}
 
-        {!historyOpen && !phone ? historyButton : null}
+        {!historyOpen && !phone && !weatherLayer ? historyButton : null}
         {historyOpen && !phone ? historyPanel : null}
       </div>
       {historyOpen && phone ? historyPanel : null}
-      <MapLegend
-        metric={metric}
-        marker={legendMarker}
-        variant="strip"
-        info={false}
-        action={phone && !historyOpen ? historyButton : null}
-        className={cn("border-t", compare || phone ? undefined : "hidden")}
-      />
+      {weatherLayer ? (
+        <WeatherLegend def={WEATHER_LAYERS[weatherLayer]} compact className="border-t px-3 py-2 sm:hidden" />
+      ) : (
+        <MapLegend
+          metric={metric}
+          marker={legendMarker}
+          variant="strip"
+          info={false}
+          action={phone && !historyOpen ? historyButton : null}
+          className={cn("border-t", compare || phone ? undefined : "hidden")}
+        />
+      )}
     </section>
   );
 }

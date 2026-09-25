@@ -74,7 +74,7 @@ function Frame({ user, children }: { user: { name: string; email: string }; chil
   return (
     <div className="group/shell" data-collapsed={sidebarCollapsed ? "true" : "false"}>
       <Sidebar user={user} />
-      <div className="min-h-dvh pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[4.25rem] xl:pl-64 xl:group-data-[collapsed=true]/shell:pl-[4.25rem]">
+      <div className="min-h-dvh pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[4.25rem] xl:pl-[17rem] xl:group-data-[collapsed=true]/shell:pl-[4.25rem]">
         <AppHeader user={user} />
         {children}
       </div>

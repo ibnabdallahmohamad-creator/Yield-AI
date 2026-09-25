@@ -2,14 +2,15 @@
 
 /**
  * Home (`/dashboard`): the portfolio. Which farms need me, and why — every farm ranked by risk in
- * one table, the week's most urgent actions beside it, then the irrigation schedule and a map of
- * all the farms. Each farm opens its own workspace. Phones: headline → farms → do first → water → map.
+ * one table with the week's most urgent actions beside it, then the irrigation schedule and a map
+ * of all the farms. Each farm opens its own workspace. Phones: headline → do first → farms → water → map.
  */
 import { ArrowRight, Droplets, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { HealthDot, RISK_TONE, riskLabel } from "@/components/dashboard/risk-badge";
 import { GetStarted } from "@/components/devices/get-started";
+import { IrrigationCard } from "@/components/home/irrigation-card";
 import { RiskSparkline } from "@/components/insights/risk-sparkline";
 import { OverviewMap } from "@/components/overview/overview-map";
 import { useShell } from "@/components/shell/shell-context";
@@ -19,7 +20,7 @@ import { lastDataIndex } from "@/lib/ai/analysis";
 import { PRIORITY_TONE, rankFarms, weeklyActions, type HealthTone } from "@/lib/dashboard";
 import { fmtNum, formatLongDay } from "@/lib/format";
 import type { MetricKey } from "@/lib/metrics";
-import { farmRow, irrigationSchedule, portfolioHeadline, portfolioSummary, type FarmRow } from "@/lib/portfolio";
+import { farmRow, portfolioHeadline, portfolioSummary, type FarmRow } from "@/lib/portfolio";
 import { farmTabHref } from "@/lib/routes";
 import type { DashboardData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -55,17 +56,6 @@ function Flash({ at }: { at?: number }) {
   return <span key={at} className={cn("pointer-events-none absolute inset-0", at ? "yai-flash" : undefined)} aria-hidden="true" />;
 }
 
-function NextWater({ row }: { row: FarmRow }) {
-  const plan = row.irrigation;
-  if (plan.grossMm == null) return <span className="text-muted-foreground">—</span>;
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className={cn("font-semibold", plan.status === "now" ? "text-risk-high-ink" : plan.status === "soon" ? "text-risk-medium-ink" : "text-foreground")}>{plan.when}</span>
-      <span className="text-muted-foreground tabular">{plan.grossMm} mm</span>
-    </span>
-  );
-}
-
 /** Desktop and tablet: every farm as a table row, riskiest first, on its latest readings. */
 function FarmTable({ rows, flashes }: { rows: FarmRow[]; flashes: Record<string, number> }) {
   return (
@@ -79,19 +69,15 @@ function FarmTable({ rows, flashes }: { rows: FarmRow[]; flashes: Record<string,
           <th scope="col" className="w-[5.5rem] px-3 py-2 text-right font-medium">
             Salinity <span className="font-normal">dS/m</span>
           </th>
-          {/* The trend needs room: shown when the table is full width, and beside the map on wide screens. */}
-          <th scope="col" className="hidden w-32 px-3 py-2 font-medium md:table-cell xl:max-[1400px]:hidden">
+          <th scope="col" className="hidden w-36 py-2 pr-5 pl-3 font-medium md:table-cell">
             Risk trend
-          </th>
-          <th scope="col" className="w-36 py-2 pr-5 pl-3 font-medium">
-            Next water
           </th>
         </tr>
       </thead>
       <tbody className="divide-y">
         {rows.map((row) => (
           <tr key={row.id} className="relative transition-colors hover:bg-muted/40">
-            <td className="h-14 max-w-0 py-2 pr-3 pl-5">
+            <td className="h-16 max-w-0 py-2 pr-3 pl-5">
               <Flash at={flashes[row.id]} />
               <div className="flex items-center gap-3">
                 <HealthDot tone={toneOf(row)} label={riskText(row)} className="ring-0" />
@@ -109,11 +95,8 @@ function FarmTable({ rows, flashes }: { rows: FarmRow[]; flashes: Record<string,
               </div>
             </td>
             <td className={cn("px-3 py-2 text-right tabular", row.overLimit && "font-semibold")}>{fmtNum(row.ece, 1)}</td>
-            <td className="hidden px-3 py-2 md:table-cell xl:max-[1400px]:hidden">
+            <td className="hidden py-2 pr-5 pl-3 md:table-cell">
               <RiskSparkline points={row.history} level={row.riskLevel} width={96} height={24} />
-            </td>
-            <td className="py-2 pr-5 pl-3">
-              <NextWater row={row} />
             </td>
           </tr>
         ))}
@@ -194,7 +177,6 @@ export function Home({
   const rows = useMemo(() => ranked.map((b) => farmRow(b, dates)), [ranked, dates]);
   const summary = portfolioSummary(rows);
   const doFirst = useMemo(() => weeklyActions(ranked).filter((a) => a.rec.priority === "high"), [ranked]);
-  const schedule = irrigationSchedule(rows);
 
   // The latest day any farm has readings for; today when none has any yet (a new account).
   const latestWithData = useMemo(() => {
@@ -252,12 +234,13 @@ export function Home({
         <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5" aria-label="Summary">
           {summary.attention ? <Chip tone="bad" count={summary.attention} label="need attention" /> : null}
           {summary.watch ? <Chip tone="warn" count={summary.watch} label="to watch" /> : null}
-          {summary.healthy ? <Chip tone="ok" count={summary.healthy} label="in range" /> : null}
+          {/* The green dots already say which farms are fine; the count only matters when all are. */}
+          {summary.healthy && !summary.attention && !summary.watch ? <Chip tone="ok" count={summary.healthy} label="in range" /> : null}
           {summary.irrigateToday ? <Chip icon={<Droplets />} count={summary.irrigateToday} label="to water today" /> : null}
         </ul>
       </header>
 
-      {/* Desktop: farms then water on the left; do first then the map on the right. */}
+      {/* Desktop: farms then water on the left; do first then the map (filling the column) on the right. */}
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:[grid-template-areas:'farms_todo'_'farms_map'_'water_map'] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <section aria-labelledby="farms-heading" className={cn(CARD, "overflow-hidden md:max-xl:col-span-2 xl:[grid-area:farms]")}>
           <h2 id="farms-heading" className="px-4 pt-4 pb-3 text-base font-semibold sm:px-5">
@@ -271,16 +254,13 @@ export function Home({
           </div>
         </section>
 
-        <section aria-labelledby="dofirst-heading" className={cn(CARD, "p-4 sm:p-5 xl:[grid-area:todo]")}>
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 id="dofirst-heading" className="text-base font-semibold">
-              Do first this week
-            </h2>
-            <span className="text-sm text-muted-foreground tabular">{doFirst.length}</span>
-          </div>
+        <section aria-labelledby="dofirst-heading" className={cn(CARD, "p-4 sm:p-5 max-md:order-first xl:[grid-area:todo]")}>
+          <h2 id="dofirst-heading" className="text-base font-semibold">
+            Do first this week
+          </h2>
           {doFirst.length > 0 ? (
             <ol className="mt-2 divide-y">
-              {doFirst.slice(0, 5).map(({ rec, farm }) => (
+              {doFirst.slice(0, 3).map(({ rec, farm }) => (
                 <li key={`${farm.id}-${rec.title}`} className="relative flex gap-3 py-3">
                   <HealthDot tone={PRIORITY_TONE[rec.priority]} className="mt-1.5 ring-0" />
                   <div className="min-w-0">
@@ -296,44 +276,11 @@ export function Home({
             <p className="mt-2 text-sm text-muted-foreground">Nothing urgent. Every farm is in range; keep the current schedules.</p>
           )}
           <Link href="/dashboard/insights" className={cn(LINK, "mt-1")}>
-            {doFirst.length > 5 ? `See all ${doFirst.length} on the plan` : "Open the plan"} <ArrowRight className="size-4" aria-hidden="true" />
+            {doFirst.length > 3 ? `See all ${doFirst.length} on the plan` : "Open the plan"} <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </section>
 
-        <section aria-labelledby="water-heading" className={cn(CARD, "p-4 sm:p-5 xl:[grid-area:water]")}>
-          <h2 id="water-heading" className="text-base font-semibold">
-            Irrigation this week
-          </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">When each farm next needs water, and how much (including water to flush salt).</p>
-          {schedule.length > 0 ? (
-            <ol className="mt-2 divide-y">
-              {schedule.map((g) => (
-                <li key={g.when} className="flex gap-4 py-3">
-                  <span
-                    className={cn(
-                      "w-20 shrink-0 text-sm font-semibold",
-                      g.status === "now" ? "text-risk-high-ink" : g.status === "soon" ? "text-risk-medium-ink" : "text-foreground",
-                    )}
-                  >
-                    {g.when}
-                  </span>
-                  <ul className="min-w-0 flex-1 space-y-1.5">
-                    {g.rows.map((r) => (
-                      <li key={r.id} className="flex items-baseline justify-between gap-3 text-sm">
-                        <Link href={farmTabHref(r.id)} className="truncate rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">
-                          {r.name}
-                        </Link>
-                        <span className="shrink-0 tabular text-muted-foreground">{r.irrigation.grossMm} mm</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">No readings to plan irrigation yet.</p>
-          )}
-        </section>
+        <IrrigationCard rows={rows} className="xl:[grid-area:water]" />
 
         <OverviewMap
           farms={ranked}

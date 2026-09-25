@@ -2,8 +2,10 @@
 
 /**
  * Farm details → Probes (ui_improvement §7.2): per-probe daily means with column groups. The
- * default columns answer "which probe is in trouble"; "Nutrients & pH" adds the rest. Colour
- * marks only readings past a risk threshold. Phones get one card per probe instead of a table.
+ * default columns answer "which probe is in trouble"; "Nutrients & pH" adds the rest. The main
+ * columns carry a small bar against the crop's limit, coloured past a risk threshold, so probes stay
+ * comparable when every one is over the limit; only the worst value is also written in red.
+ * Phones get one card per probe instead of a table.
  */
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useId } from "react";
@@ -26,15 +28,17 @@ interface Column {
   value: (s: SensorDay) => number | null;
   decimals: number;
   tone: (v: number | null) => Tone;
+  /** Draw an in-cell bar, with a tick at this limit (null: bar without a limit). */
+  bar?: { limit: number | null };
 }
 
 function columns(bundle: FarmBundle): Column[] {
   const limit = CROPS[bundle.farm.main_crop].salinity.threshold_dS_per_m;
   return [
-    { key: "ece", label: "Salinity", unit: "dS/m", group: "main", value: (s) => s.ece, decimals: 1, tone: (v) => (v == null ? null : v > limit ? "bad" : v >= 0.85 * limit ? "warn" : null) },
-    { key: "moisture", label: "Moisture", unit: "%", group: "main", value: (s) => s.moisture, decimals: 1, tone: () => null },
-    { key: "deficit", label: "Water used", unit: "% of reserve", group: "main", value: (s) => s.deficitPct, decimals: 0, tone: (v) => (v == null ? null : v > 100 ? "bad" : v >= 80 ? "warn" : null) },
-    { key: "yieldLoss", label: "Yield at risk", unit: "%", group: "main", value: (s) => s.yieldLoss, decimals: 0, tone: (v) => (v == null ? null : v >= 10 ? "bad" : v >= 2 ? "warn" : null) },
+    { key: "ece", label: "Salinity", unit: "dS/m", group: "main", value: (s) => s.ece, decimals: 1, tone: (v) => (v == null ? null : v > limit ? "bad" : v >= 0.85 * limit ? "warn" : null), bar: { limit } },
+    { key: "moisture", label: "Moisture", unit: "%", group: "main", value: (s) => s.moisture, decimals: 1, tone: () => null, bar: { limit: null } },
+    { key: "deficit", label: "Water used", unit: "% of reserve", group: "main", value: (s) => s.deficitPct, decimals: 0, tone: (v) => (v == null ? null : v > 100 ? "bad" : v >= 80 ? "warn" : null), bar: { limit: 100 } },
+    { key: "yieldLoss", label: "Yield at risk", unit: "%", group: "main", value: (s) => s.yieldLoss, decimals: 0, tone: (v) => (v == null ? null : v >= 10 ? "bad" : v >= 2 ? "warn" : null), bar: { limit: 10 } },
     { key: "ph", label: "pH", unit: "", group: "more", value: (s) => s.ph, decimals: 1, tone: (v) => (v != null && v > 8.5 ? "warn" : null) },
     { key: "temperature", label: "Soil temp.", unit: "°C", group: "more", value: (s) => s.temperature, decimals: 1, tone: () => null },
     { key: "n", label: "N", unit: "mg/kg", group: "more", value: (s) => s.n, decimals: 0, tone: (v) => (nutrientStatus("n", v) === "low" ? "warn" : null) },
@@ -49,13 +53,45 @@ const TONE_TEXT: Record<Exclude<Tone, null>, string> = {
 };
 const TONE_WORD: Record<Exclude<Tone, null>, string> = { bad: "at risk", warn: "watch" };
 
-function Cell({ col, s }: { col: Column; s: SensorDay }) {
+const BAR_FILL: Record<Exclude<Tone, null> | "ok", string> = {
+  bad: "bg-risk-high/80",
+  warn: "bg-risk-medium",
+  ok: "bg-primary/35",
+};
+
+/** Each bar column's scale: the probes' largest value, or a little past the limit. */
+type Scales = Record<string, { max: number; worst: number | null }>;
+
+function scalesFor(cols: Column[], sensors: SensorDay[]): Scales {
+  const out: Scales = {};
+  for (const c of cols) {
+    const vals = sensors.map((s) => c.value(s)).filter((v): v is number => v != null && Number.isFinite(v));
+    const top = vals.length ? Math.max(...vals) : null;
+    out[c.key] = { max: Math.max(top ?? 0, (c.bar?.limit ?? 0) * 1.25, 1e-6), worst: top };
+  }
+  return out;
+}
+
+function Cell({ col, s, scale }: { col: Column; s: SensorDay; scale?: Scales[string] }) {
   const v = col.value(s);
   const tone = col.tone(v);
-  return (
-    <span className={cn("tabular", tone && TONE_TEXT[tone])}>
+  // Only the worst reading in a column past a threshold is written in colour; the bars carry the rest.
+  const loud = tone != null && (!col.bar || (scale?.worst != null && v === scale.worst));
+  const text = (
+    <span className={cn("tabular", loud && tone && TONE_TEXT[tone])}>
       {fmtNum(v, col.decimals)}
       {tone ? <span className="sr-only"> ({TONE_WORD[tone]})</span> : null}
+    </span>
+  );
+  if (!col.bar || !scale || v == null) return text;
+  const pct = (x: number) => `${Math.min(100, Math.max(0, (x / scale.max) * 100))}%`;
+  return (
+    <span className="inline-flex items-center justify-end gap-2">
+      <span className="relative h-1.5 w-12 shrink-0 overflow-visible rounded-full bg-muted" aria-hidden="true">
+        <span className={cn("absolute inset-y-0 left-0 rounded-full", BAR_FILL[tone ?? "ok"])} style={{ width: pct(v) }} />
+        {col.bar.limit != null ? <span className="absolute -inset-y-1 w-px bg-foreground/55" style={{ left: pct(col.bar.limit) }} /> : null}
+      </span>
+      <span className="min-w-8 text-right">{text}</span>
     </span>
   );
 }
@@ -105,6 +141,7 @@ export function ProbesPanel({
   const more = cols.filter((c) => c.group === "more");
   const sensors = day ? [...day.sensors].sort((a, b) => a.id.localeCompare(b.id)) : [];
   const saltiest = sensors.reduce<SensorDay | null>((top, s) => (s.ece != null && (top?.ece == null || s.ece > top.ece) ? s : top), null);
+  const scales = scalesFor(cols, sensors);
 
   return (
     <section aria-labelledby="probes-title" className="rounded-2xl border bg-card shadow-xs">
@@ -143,7 +180,7 @@ export function ProbesPanel({
                         {c.unit ? <span className="text-xs"> {c.unit === "% of reserve" ? "%" : c.unit}</span> : null}
                       </dt>
                       <dd>
-                        <Cell col={c} s={s} />
+                        <Cell col={c} s={s} scale={scales[c.key]} />
                       </dd>
                     </div>
                   ))}
@@ -194,7 +231,7 @@ export function ProbesPanel({
                     </th>
                     {cols.map((c, i) => (
                       <td key={c.key} className={cn("border-b px-4 py-3 text-right whitespace-nowrap", c.group === "more" && more[0] === c && "border-l", i === cols.length - 1 && "pr-6")}>
-                        <Cell col={c} s={s} />
+                        <Cell col={c} s={s} scale={scales[c.key]} />
                       </td>
                     ))}
                   </tr>
@@ -203,8 +240,8 @@ export function ProbesPanel({
             </table>
           </div>
           <p className="px-4 py-3 text-xs text-muted-foreground sm:px-6">
-            Salinity is ECe estimated from bulk EC with this farm&apos;s calibration. Red and amber mark readings past the crop&apos;s limit or a
-            stress threshold; nutrient ranges are indicative.
+            Salinity is ECe estimated from bulk EC with this farm&apos;s calibration. Bars compare the probes; the tick marks the crop&apos;s salt
+            limit, a full reserve, or 10% yield loss. Red and amber bars are past a risk or watch threshold; nutrient ranges are indicative.
           </p>
         </>
       )}

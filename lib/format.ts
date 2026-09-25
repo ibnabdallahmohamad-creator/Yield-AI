@@ -39,6 +39,11 @@ export function formatWeekday(date: string): string {
   return WEEKDAYS[parts(date).wd];
 }
 
+/** "Thursday" */
+export function formatLongWeekday(date: string): string {
+  return WEEKDAYS_LONG[parts(date).wd];
+}
+
 /** "24 Sep" */
 export function formatShortDay(date: string): string {
   const p = parts(date);

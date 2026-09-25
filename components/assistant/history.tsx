@@ -281,6 +281,9 @@ export function HistoryPanel({
     />
   );
   const filterName = filterFarm === "all" ? null : (farmById.get(filterFarm)?.name ?? null);
+  // Search and the farm filter only once there are chats to search (kept while loading, so nothing jumps).
+  const searchable = items === null || items.length > 0 || query !== "";
+  const filterable = farms.length > 1 && (items === null || items.length > 0 || filterFarm !== "all");
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -289,53 +292,57 @@ export function HistoryPanel({
         <Button variant="outline" className="h-11 w-full justify-start gap-2 rounded-xl bg-card px-3 sm:h-9" onClick={onNew}>
           <Plus aria-hidden="true" /> New chat
         </Button>
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <label htmlFor="chat-search" className="sr-only">
-            Search chats
-          </label>
-          <input
-            id="chat-search"
-            type="search"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape" && query) {
-                e.preventDefault();
-                onQueryChange("");
-              }
-            }}
-            placeholder="Search chats"
-            autoComplete="off"
-            className="h-11 w-full rounded-xl border border-transparent bg-foreground/5 pr-10 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-card focus-visible:ring-3 focus-visible:ring-ring/30 sm:h-9 sm:text-sm [&::-webkit-search-cancel-button]:hidden"
-          />
-          {query ? (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => onQueryChange("")}
-              className="absolute top-0 right-0 flex size-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
-            >
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          ) : null}
-        </div>
-        <Select value={filterFarm} onValueChange={onFilterFarm}>
-          <SelectTrigger aria-label="Show chats about" className="h-11 w-full rounded-xl bg-card sm:h-9">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="text-muted-foreground">Show</span>
-              <SelectValue />
-            </span>
-          </SelectTrigger>
-          <SelectContent position="popper" align="start" className="max-h-80">
-            <SelectItem value="all">All farms</SelectItem>
-            {farms.map((f) => (
-              <SelectItem key={f.id} value={f.id}>
-                {f.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {searchable ? (
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <label htmlFor="chat-search" className="sr-only">
+              Search chats
+            </label>
+            <input
+              id="chat-search"
+              type="search"
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && query) {
+                  e.preventDefault();
+                  onQueryChange("");
+                }
+              }}
+              placeholder="Search chats"
+              autoComplete="off"
+              className="h-11 w-full rounded-xl border border-transparent bg-foreground/5 pr-10 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-card focus-visible:ring-3 focus-visible:ring-ring/30 sm:h-9 sm:text-sm [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => onQueryChange("")}
+                className="absolute top-0 right-0 flex size-11 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground sm:size-9"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {filterable ? (
+          <Select value={filterFarm} onValueChange={onFilterFarm}>
+            <SelectTrigger aria-label="Show chats about" className="h-11 w-full rounded-xl bg-card sm:h-9">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="text-muted-foreground">Show</span>
+                <SelectValue />
+              </span>
+            </SelectTrigger>
+            <SelectContent position="popper" align="start" className="max-h-80">
+              <SelectItem value="all">All farms</SelectItem>
+              {farms.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
       </div>
 
       <nav aria-label="Chat history" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-2 pb-3">

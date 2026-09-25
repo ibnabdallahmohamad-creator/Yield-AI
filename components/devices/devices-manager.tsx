@@ -121,7 +121,7 @@ function DeviceRow({
             }
           }}
         >
-          <SelectTrigger id={`interval-${device.id}`} className="h-9 w-36" aria-label={`Reading interval for ${device.name}`}>
+          <SelectTrigger id={`interval-${device.id}`} className="h-11 sm:h-9 sm:pointer-coarse:h-11 w-36" aria-label={`Reading interval for ${device.name}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -133,14 +133,14 @@ function DeviceRow({
           </SelectContent>
         </Select>
         {status === "waiting" ? (
-          <Button variant="outline" className="h-9" onClick={onPair}>
+          <Button variant="outline" className="h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={onPair}>
             <QrCode aria-hidden="true" />
             Pair
           </Button>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-9" aria-label={`More actions for ${device.name}`}>
+            <Button variant="ghost" size="icon" className="size-11 sm:size-9 sm:pointer-coarse:size-11" aria-label={`More actions for ${device.name}`}>
               <EllipsisVertical aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
@@ -258,7 +258,7 @@ export function DevicesManager({
     <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-60 flex-1">
-          <h1 className="text-xl font-semibold sm:text-2xl">Farms &amp; devices</h1>
+          <h1 className="font-display text-[1.75rem] leading-tight font-semibold tracking-tight">Farms &amp; devices</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {farms.length === 0
               ? "Add your first farm, then connect an ESP32 to it."
@@ -266,12 +266,12 @@ export function DevicesManager({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="h-10" onClick={() => setFarmDialog({ open: true, farm: null })}>
+          <Button variant="outline" className="h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={() => setFarmDialog({ open: true, farm: null })}>
             <Plus aria-hidden="true" />
             Add farm
           </Button>
           {farms.length ? (
-            <Button className="h-10" onClick={() => setConnect({ open: true, farmId: shell?.farmId ?? farms[0].id, start: null })}>
+            <Button className="h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={() => setConnect({ open: true, farmId: shell?.farmId ?? farms[0].id, start: null })}>
               <Wifi aria-hidden="true" />
               Connect ESP32
             </Button>
@@ -307,7 +307,7 @@ export function DevicesManager({
               </li>
             ))}
           </ol>
-          <Button className="mt-6 h-10" onClick={() => setFarmDialog({ open: true, farm: null })}>
+          <Button className="mt-6 h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={() => setFarmDialog({ open: true, farm: null })}>
             <Plus aria-hidden="true" />
             Add your first farm
           </Button>
@@ -344,14 +344,14 @@ export function DevicesManager({
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="h-9" onClick={() => setConnect({ open: true, farmId: farm.id, start: null })}>
+                <Button variant="outline" size="sm" className="h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={() => setConnect({ open: true, farmId: farm.id, start: null })}>
                   <Plus aria-hidden="true" />
                   Device
                 </Button>
-                <Button variant="ghost" size="icon" className="size-9" aria-label={`Edit ${farm.name}`} onClick={() => setFarmDialog({ open: true, farm })}>
+                <Button variant="ghost" size="icon" className="size-11 sm:size-9 sm:pointer-coarse:size-11" aria-label={`Edit ${farm.name}`} onClick={() => setFarmDialog({ open: true, farm })}>
                   <Pencil aria-hidden="true" />
                 </Button>
-                <Button variant="ghost" size="icon" className="size-9" aria-label={`Delete ${farm.name}`} onClick={() => setConfirm({ kind: "farm", farm })}>
+                <Button variant="ghost" size="icon" className="size-11 sm:size-9 sm:pointer-coarse:size-11" aria-label={`Delete ${farm.name}`} onClick={() => setConfirm({ kind: "farm", farm })}>
                   <Trash2 aria-hidden="true" />
                 </Button>
               </div>
@@ -374,7 +374,7 @@ export function DevicesManager({
             ) : (
               <div className="flex flex-wrap items-center gap-3 px-4 py-4 text-sm text-muted-foreground sm:px-5">
                 <span className="flex-1">No devices on this farm yet.</span>
-                <Button size="sm" className="h-9" onClick={() => setConnect({ open: true, farmId: farm.id, start: null })}>
+                <Button size="sm" className="h-11 sm:h-9 sm:pointer-coarse:h-11" onClick={() => setConnect({ open: true, farmId: farm.id, start: null })}>
                   <Wifi aria-hidden="true" />
                   Connect an ESP32
                 </Button>

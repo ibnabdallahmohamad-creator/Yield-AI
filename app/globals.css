@@ -386,6 +386,143 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Weather map (components/weather)
+ * ------------------------------------------------------------------------- */
+.leaflet-container.yai-wx-map {
+  background: oklch(0.2 0.012 170);
+}
+.yai-wx-map .leaflet-control-attribution {
+  background: oklch(0.18 0.015 165 / 0.62);
+  color: oklch(0.95 0.005 90 / 0.85);
+}
+.yai-wx-map .leaflet-control-attribution a {
+  color: oklch(0.95 0.005 90);
+}
+.yai-wx-field {
+  pointer-events: none;
+  image-rendering: auto;
+}
+.yai-wx-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+/* A farm on the weather map: a dot, its value in the layer's colour, and (selected / zoomed in) its name */
+.yai-wx-farm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translate(-6px, -50%);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.yai-wx-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 2.5px solid oklch(0.26 0.05 162);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.5);
+}
+.yai-wx-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  padding: 0 6px;
+  border: 1px solid oklch(1 0 0 / 0.6);
+  font: 700 12px/19px var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.45);
+}
+.yai-wx-arrow {
+  width: 11px;
+  height: 11px;
+}
+.yai-wx-name {
+  border-radius: 6px;
+  padding: 0 7px;
+  background: oklch(0.2 0.03 165 / 0.86);
+  color: #fff;
+  font: 600 12px/19px var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.4);
+}
+.yai-wx-farm:hover .yai-wx-val,
+.yai-wx-farm.is-selected .yai-wx-val {
+  outline: 2px solid #fff;
+  outline-offset: 0;
+}
+.yai-wx-farm.is-selected .yai-wx-dot {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 2px 6px oklch(0 0 0 / 0.5);
+}
+/* The dropped pin (click anywhere for that spot's forecast) */
+.yai-wx-pin {
+  position: absolute;
+  left: -10px;
+  top: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 3px solid #fff;
+  background: oklch(0.55 0.19 27);
+  box-shadow:
+    0 0 0 2px oklch(0 0 0 / 0.35),
+    0 2px 8px oklch(0 0 0 / 0.5);
+}
+
+/* The weather timeline's hour slider: the strip behind it is the track; the thumb is a hollow pill. */
+.yai-wx-range {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  background: transparent;
+}
+.yai-wx-range:focus {
+  outline: none;
+}
+.yai-wx-range::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.yai-wx-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 32px;
+  border-radius: 6px;
+  background: oklch(1 0 0 / 0.18);
+  border: 2.5px solid var(--forest-900);
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.yai-wx-range::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+.yai-wx-range::-moz-range-thumb {
+  width: 9px;
+  height: 27px;
+  border-radius: 6px;
+  background: oklch(1 0 0 / 0.18);
+  border: 2.5px solid var(--forest-900);
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.yai-wx-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 4.5px var(--ring);
+}
+.yai-wx-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 4.5px var(--ring);
+}
+
 @keyframes yai-flash {
   0% {
     background-color: oklch(0.9 0.08 150);

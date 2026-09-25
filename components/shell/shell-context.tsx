@@ -39,12 +39,13 @@ export interface LiveEvent {
   simulated: boolean;
 }
 
-export type Section = "home" | "insights" | "farm" | "land" | "devices" | "assistant" | "other";
+export type Section = "home" | "insights" | "farm" | "weather" | "land" | "devices" | "assistant" | "other";
 
 export function sectionOf(pathname: string): Section {
   if (pathname === "/dashboard") return "home";
   if (pathname.startsWith("/dashboard/insights")) return "insights";
   if (pathname.startsWith("/dashboard/farm/")) return "farm";
+  if (pathname.startsWith("/dashboard/weather")) return "weather";
   if (pathname.startsWith("/dashboard/land")) return "land";
   if (pathname.startsWith("/dashboard/devices")) return "devices";
   if (pathname.startsWith("/dashboard/assistant")) return "assistant";
@@ -67,6 +68,8 @@ export function sectionHref(section: Exclude<Section, "other">, farmId: string |
       return "/dashboard/insights";
     case "farm":
       return farmId ? farmHref(farmId) : "/dashboard";
+    case "weather":
+      return `/dashboard/weather${q}`;
     case "land":
       return `/dashboard/land${q}`;
     case "devices":

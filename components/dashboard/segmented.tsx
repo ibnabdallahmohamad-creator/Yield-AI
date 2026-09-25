@@ -49,7 +49,7 @@ export function Segmented<T extends string>({
           disabled={o.disabled}
           className={cn(
             "inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none select-none hover:bg-card/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-45 data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-sm [&_svg]:size-3.5 [&_svg]:shrink-0",
-            size === "sm" ? "h-6.5 min-w-7 px-2 text-[12px]" : "h-8 px-2.5 text-[13px]",
+            size === "sm" ? "h-6.5 min-w-7 px-2 text-[12px]" : "h-11 px-3 text-sm sm:h-8 sm:px-2.5 sm:pointer-coarse:h-11",
           )}
         >
           {o.icon}

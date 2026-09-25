@@ -9,6 +9,7 @@ import { localProjector, polygonBounds, toLatLngRing, type GeoPolygon } from "@/
 import { idwValue } from "@/lib/idw";
 import { colorFor, colorRgb, formatValue, readableTextOn, type Delta, type MetricDef } from "@/lib/metrics";
 import { estimateTextWidth, layoutPins, type PinInput, type Side } from "@/lib/pin-layout";
+import { GestureZoom } from "./gesture-zoom";
 import type { MapSync } from "./map-sync";
 import { RasterLayer } from "./raster-layer";
 
@@ -83,7 +84,8 @@ const fitOptions = (p: MapPadding): L.FitBoundsOptions => ({
 const TILE_ESRI_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const TILE_ESRI_LABELS =
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
-const TILE_CARTO_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+// CARTO's basemaps now need an API key (they serve "API key required" tiles without one).
+const TILE_ESRI_STREETS = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -259,49 +261,6 @@ function AttributionSetup({ position }: { position: L.ControlPosition }) {
     map.attributionControl?.setPosition(position);
   }, [map, position]);
   return null;
-}
-
-/**
- * On a page that scrolls, the wheel scrolls the page and Ctrl/⌘ + wheel (or a trackpad pinch,
- * which browsers report as Ctrl + wheel) zooms the map. A plain wheel shows a short hint.
- */
-function GestureZoom() {
-  const map = useMap();
-  const [hint, setHint] = useState(false);
-  useEffect(() => {
-    const el = map.getContainer();
-    let timer: number | undefined;
-    let acc = 0;
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        acc += -e.deltaY * (e.deltaMode === 1 ? 33 : 1);
-        if (Math.abs(acc) < 40) return;
-        const step = acc > 0 ? 0.5 : -0.5;
-        acc = 0;
-        map.setZoomAround(map.mouseEventToContainerPoint(e), map.getZoom() + step);
-        setHint(false);
-        return;
-      }
-      setHint(true);
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => setHint(false), 1500);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      el.removeEventListener("wheel", onWheel);
-      window.clearTimeout(timer);
-    };
-  }, [map]);
-  if (!hint) return null;
-  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-[1000] flex -translate-y-1/2 justify-center" aria-hidden="true">
-      <span className="rounded-full bg-forest-900/85 px-4 py-2 text-sm font-medium text-primary-foreground shadow-md">
-        Hold {mac ? "⌘" : "Ctrl"} and scroll to zoom the map
-      </span>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -685,9 +644,9 @@ export default function FarmMap({
       ) : (
         <TileLayer
           key="streets"
-          url={TILE_CARTO_VOYAGER}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          subdomains="abcd"
+          url={TILE_ESRI_STREETS}
+          attribution="Map © Esri, HERE, Garmin, OpenStreetMap contributors"
+          maxNativeZoom={18}
           maxZoom={19}
         />
       )}

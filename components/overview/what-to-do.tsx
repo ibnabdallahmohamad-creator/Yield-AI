@@ -2,7 +2,7 @@
 
 /**
  * "What to do": the most urgent actions under the same priority headings as the Plan and the Advice
- * tab (titles only, the first with its one-line reason), and the way to the full advice or the
+ * tab (titles only; the most urgent group with its one-line reasons), and the way to the full advice or the
  * assistant. Sits beside the farm's map, under the headline numbers it would otherwise repeat.
  */
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -62,7 +62,7 @@ export function WhatToDo({
                   {g.recs.map((rec, i) => (
                     <li key={`${rec.title}-${i}`}>
                       <p className="text-sm leading-snug font-semibold text-pretty">{rec.title}</p>
-                      {gi === 0 && i === 0 && rec.detail ? (
+                      {gi === 0 && rec.detail ? (
                         <p className="mt-0.5 text-sm leading-snug text-pretty text-muted-foreground">{splitFirstSentence(rec.detail)[0]}</p>
                       ) : null}
                     </li>
@@ -78,7 +78,7 @@ export function WhatToDo({
         <div className="mt-3 flex flex-wrap gap-x-5">
           {onAllActions ? (
             <button type="button" onClick={onAllActions} className={LINK}>
-              {actions.length > 1 ? `All ${actions.length} actions` : "All advice"}
+              {actions.length > shown.length ? `All ${actions.length} actions` : "Full advice"}
               <ArrowRight className="size-4" aria-hidden="true" />
             </button>
           ) : null}

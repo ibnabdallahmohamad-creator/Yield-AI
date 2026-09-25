@@ -1,12 +1,14 @@
 /**
  * Runs once when the server starts. On a long-running Node server (`next start`, `next dev`) it
  * schedules the 12-hour weather refresh: at every 00:00 and 12:00 Asia/Qatar the hourly forecast is
- * downloaded again for every farm location in use (lib/data/forecast.ts). Serverless hosts refresh on
- * first use in each half-day instead, or from GET /api/cron/weather.
+ * downloaded again for every farm location in use (lib/data/forecast.ts), then the weather map's grid
+ * (lib/weather/grid.ts). Serverless hosts refresh on first use in each half-day instead, or from
+ * GET /api/cron/weather.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.OPEN_METEO_DISABLED === "true") return;
   const { nextRefreshAt, refreshTrackedForecasts } = await import("./lib/data/forecast");
+  const { refreshWeatherGrid } = await import("./lib/weather/grid");
 
   const g = globalThis as typeof globalThis & { __yieldForecastTimer?: ReturnType<typeof setTimeout> };
   if (g.__yieldForecastTimer) clearTimeout(g.__yieldForecastTimer);
@@ -21,6 +23,12 @@ export async function register() {
       } catch (error) {
         console.warn("[forecast] 12-hour refresh failed:", error instanceof Error ? error.message : error);
       }
+      // The weather map's grid (554 points) a minute later, so both stay inside Open-Meteo's per-minute limit.
+      setTimeout(() => {
+        refreshWeatherGrid()
+          .then((ok) => ok && console.log("[weather-grid] 12-hour refresh done"))
+          .catch((error) => console.warn("[weather-grid] refresh failed:", error instanceof Error ? error.message : error));
+      }, 65_000).unref?.();
       schedule();
     }, wait);
     g.__yieldForecastTimer.unref?.();

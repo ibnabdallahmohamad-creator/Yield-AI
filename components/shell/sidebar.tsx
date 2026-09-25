@@ -5,7 +5,7 @@
  * click to any farm from any page. From 1280 px it shows labels (unless the user collapses it);
  * narrower desktops get a 68 px rail with tooltips and farm monograms.
  */
-import { ChevronsLeft, ChevronsRight, Cpu, House, LandPlot, ListChecks } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, CloudSun, Cpu, House, LandPlot, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { LogoMark } from "@/components/brand/logo";
 import { HealthDot, RISK_TONE, riskLabel } from "@/components/dashboard/risk-badge";
@@ -29,6 +29,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { section: "home", label: "Home", icon: <House /> },
   { section: "insights", label: "Plan", icon: <ListChecks /> },
+  { section: "weather", label: "Weather", icon: <CloudSun /> },
   { section: "land", label: "Land use", icon: <LandPlot /> },
   { section: "devices", label: "Farms & devices", icon: <Cpu /> },
 ];
@@ -109,7 +110,7 @@ export function Sidebar({ user }: { user: { name: string; email: string } }) {
     <nav
       aria-label="Main"
       data-chrome
-      className="fixed inset-y-0 left-0 z-30 hidden w-[4.25rem] flex-col border-r bg-sidebar lg:flex xl:w-64 xl:group-data-[collapsed=true]/shell:w-[4.25rem]"
+      className="fixed inset-y-0 left-0 z-30 hidden w-[4.25rem] flex-col border-r bg-sidebar lg:flex xl:w-[17rem] xl:group-data-[collapsed=true]/shell:w-[4.25rem]"
     >
       <div className="flex h-14 shrink-0 items-center gap-2.5 px-4">
         <Link href="/dashboard" aria-label="Yield AI home" className="-m-1 rounded-lg p-1 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">

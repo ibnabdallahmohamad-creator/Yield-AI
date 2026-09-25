@@ -916,8 +916,9 @@ export function AssistantApp({ boot }: { boot: AssistantBoot }) {
             ) : null}
             <FarmSelect farms={farms} value={farmId} onChange={changeFarm} className="max-w-[44vw] sm:max-w-72" />
             <AsOfSelect dates={dates} value={asOf} onChange={setAsOf} />
-            <h1 className="ml-auto min-w-0 truncate px-2 text-sm text-muted-foreground max-xl:sr-only xl:max-w-80">{title}</h1>
-            <IconButton label="New chat" onClick={newChat} className={cn("max-xl:ml-auto", !collapsed && "lg:hidden")}>
+            {/* An empty chat's "New chat" title would read as a second New chat button: screen readers only. */}
+            <h1 className={cn("ml-auto min-w-0 truncate px-2 text-sm text-muted-foreground max-xl:sr-only xl:max-w-80", !conversation && "sr-only")}>{title}</h1>
+            <IconButton label="New chat" onClick={newChat} className={cn(conversation ? "max-xl:ml-auto" : "ml-auto", !collapsed && "lg:hidden")}>
               <SquarePen className="size-4" aria-hidden="true" />
             </IconButton>
             {conversation ? (

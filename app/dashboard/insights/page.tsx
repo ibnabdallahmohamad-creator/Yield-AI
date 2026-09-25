@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ArrowRight, Sparkles, Sprout } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { HealthDot, RiskBadge } from "@/components/dashboard/risk-badge";
 import { GetStarted } from "@/components/devices/get-started";
+import { IrrigationCard } from "@/components/home/irrigation-card";
 import { CropSuggestion, MarketChip, WeeklyActions } from "@/components/insights/farm-advice";
 import { FarmFilter, HowItWorks, ReportFarm } from "@/components/insights/insights-controls";
 import { RiskSparkline } from "@/components/insights/risk-sparkline";
@@ -11,7 +12,7 @@ import { requireUser } from "@/lib/auth/session";
 import { cropChoice, plainHeadline, rankFarms, riskReason, weeklyActions, type CropChoice } from "@/lib/dashboard";
 import { getDashboardFor } from "@/lib/data/repository";
 import { fmtNum, formatShortDay, formatTime, qatarDay } from "@/lib/format";
-import { farmRow, irrigationSchedule, type FarmRow } from "@/lib/portfolio";
+import { farmRow, type FarmRow } from "@/lib/portfolio";
 import { assistantHref, farmTabHref, insightsHref, type PlanView } from "@/lib/routes";
 import type { FarmBundle } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -63,7 +64,7 @@ export default async function PlanPage({ searchParams }: PageProps<"/dashboard/i
       ? `Which crop to plant next, at ${selected ? `${selected.farm.name}'s` : "each farm's"} current salinity`
       : selected
         ? `${plural(actions.length, "action")} for ${selected.farm.name} this week`
-        : `What to do this week across your farms`;
+        : `${plural(actions.length, "action")} across ${plural(farmsWithActions, "farm")} this week`;
 
   return (
     <div className="yai-enter px-4 pt-5 pb-10 sm:px-6 lg:px-8 lg:pt-6">
@@ -93,34 +94,29 @@ export default async function PlanPage({ searchParams }: PageProps<"/dashboard/i
       {planView === "week" ? (
         <div className="mt-5 grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <section aria-labelledby="week-heading" className={CARD}>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 id="week-heading" className="text-xl font-semibold tracking-tight">
-                This week
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {plural(actions.length, "action")}
-                {selected ? "" : ` across ${plural(farmsWithActions, "farm")}`}
-              </p>
-            </div>
+            {/* The view switch and the subtitle already say "this week" and how many: named for screen readers only. */}
+            <h2 id="week-heading" className="sr-only">
+              This week
+            </h2>
             {actions.length > 0 ? (
-              <WeeklyActions actions={actions} limit={selected ? actions.length : 6} showFarm={!selected} className="mt-6" />
+              <WeeklyActions actions={actions} limit={selected ? actions.length : 6} showFarm={!selected} />
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">Nothing to do this week. {selected ? "This farm is" : "Every farm is"} in range; keep the current schedules.</p>
+              <p className="text-sm text-muted-foreground">Nothing to do this week. {selected ? "This farm is" : "Every farm is"} in range; keep the current schedules.</p>
             )}
           </section>
 
           <aside aria-label="Alongside the plan" className="grid gap-4 sm:grid-cols-2 lg:gap-6 xl:sticky xl:top-20 xl:grid-cols-1">
             {selected ? <FarmCard bundle={selected} /> : null}
-            <Irrigation rows={rows} />
+            <IrrigationCard rows={rows} className="p-5 sm:p-6" />
           </aside>
         </div>
       ) : selected ? (
         <div className="mt-5 grid grid-cols-1 items-start gap-4 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <section aria-labelledby="season-heading" className={CARD}>
-            <h2 id="season-heading" className="text-xl font-semibold tracking-tight">
+            <h2 id="season-heading" className="sr-only">
               Next season
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Growing {CROPS[selected.farm.main_crop].name.toLowerCase()} now. A seasonal decision, not a weekly one.
             </p>
             {cropChoice(selected) || selected.insight?.crop_suggestion ? (
@@ -197,39 +193,6 @@ function FarmCard({ bundle }: { bundle: FarmBundle }) {
 }
 
 /** When each farm next needs water: the part of the plan that runs on a clock. */
-function Irrigation({ rows }: { rows: FarmRow[] }) {
-  const schedule = irrigationSchedule(rows);
-  return (
-    <section aria-labelledby="water-heading" className={CARD}>
-      <h2 id="water-heading" className="text-base font-semibold">
-        Irrigation
-      </h2>
-      <p className="mt-0.5 text-xs text-muted-foreground">Next watering and how much, including water to flush salt.</p>
-      {schedule.length > 0 ? (
-        <ol className="mt-2 divide-y">
-          {schedule.map((g) => (
-            <li key={g.when} className="flex gap-3 py-2.5">
-              <span className={cn("w-[4.5rem] shrink-0 text-sm font-semibold", g.status === "now" ? "text-risk-high-ink" : g.status === "soon" ? "text-risk-medium-ink" : undefined)}>
-                {g.when}
-              </span>
-              <ul className="min-w-0 flex-1 space-y-1">
-                {g.rows.map((r) => (
-                  <li key={r.id} className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="truncate">{r.name}</span>
-                    <span className="shrink-0 tabular text-muted-foreground">{r.irrigation.grossMm} mm</span>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">No readings to plan irrigation yet.</p>
-      )}
-    </section>
-  );
-}
-
 interface SeasonRow {
   bundle: FarmBundle;
   row: FarmRow;
@@ -242,21 +205,48 @@ interface SeasonRow {
 }
 
 function switchReason(choice: CropChoice, yieldNow: number | null): string {
-  if (choice.alternative) return `Oversupplied; ${choice.alternative.name.toLowerCase()} sells better (${fmtNum(choice.alternative.relativeYield, 0)}%)`;
+  const alt = choice.alternative;
+  if (alt) return `${choice.best.name} grows best but is oversupplied; ${alt.name.toLowerCase()} (${fmtNum(alt.relativeYield, 0)}%) sells better`;
   if (yieldNow == null || choice.best.relativeYield > yieldNow + 2) return "Grows better at this salt level";
   if (choice.best.market === "undersupplied") return "About the same yield, and in demand";
   return "Suggested in the latest assessment";
 }
 
-function PlantNext({ s }: { s: SeasonRow }) {
-  if (!s.choice) return <span className="text-muted-foreground">{s.bundle.insight?.crop_suggestion?.crop ?? "No readings yet"}</span>;
+/** "Cucumber → Zucchini" when a switch pays ("… or tomato" when it's oversupplied), "Cucumber · keep" (quiet) when the crop is already right. */
+function CropNowNext({ s }: { s: SeasonRow }) {
+  const now = CROPS[s.bundle.farm.main_crop].name;
+  if (!s.choice) {
+    return (
+      <span className="block min-w-0">
+        {now}
+        <span className="mt-0.5 block text-xs text-muted-foreground">{s.bundle.insight?.crop_suggestion?.crop ?? "No readings yet"}</span>
+      </span>
+    );
+  }
+  const alt = s.choice.alternative;
+  if (s.keep) {
+    return (
+      <span className="block min-w-0 text-muted-foreground">
+        {now} <span className="text-xs">· keep</span>
+      </span>
+    );
+  }
   return (
     <span className="block min-w-0">
-      <span className="flex items-center gap-1.5 font-semibold">
-        <Sprout className="size-4 shrink-0 text-primary" aria-hidden="true" />
-        {s.keep ? `Keep ${s.choice.best.name.toLowerCase()}` : s.choice.best.name}
+      <span className="text-muted-foreground">{now}</span>
+      <span className="px-1.5 text-muted-foreground" aria-hidden="true">
+        →
       </span>
-      {s.why ? <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{s.why}</span> : null}
+      <span className="sr-only"> then </span>
+      <span className="font-semibold">{s.choice.best.name}</span>
+      {/* Oversupplied best crop: the one that sells better sits beside it, as on the farm's advice. */}
+      {alt ? (
+        <>
+          <span className="text-muted-foreground"> or </span>
+          <span className="font-semibold">{alt.crop === s.bundle.farm.main_crop ? `keep ${alt.name.toLowerCase()}` : alt.name.toLowerCase()}</span>
+        </>
+      ) : null}
+      {s.why ? <span className="mt-0.5 block text-xs text-muted-foreground">{s.why}</span> : null}
     </span>
   );
 }
@@ -275,10 +265,10 @@ function NextSeason({ ranked, rows }: { ranked: FarmBundle[]; rows: FarmRow[] })
   return (
     <section aria-labelledby="season-heading" className={cn(CARD, "mt-5 p-0 sm:p-0")}>
       <div className="px-5 pt-5 pb-4 sm:px-6">
-        <h2 id="season-heading" className="text-xl font-semibold tracking-tight">
+        <h2 id="season-heading" className="sr-only">
           Next season
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {switching > 0 ? `${plural(switching, "farm")} would do better with another crop. ` : "Every farm is on the best crop for its salt level. "}
           Yields are % of a full crop at today&apos;s salinity.
         </p>
@@ -293,16 +283,13 @@ function NextSeason({ ranked, rows }: { ranked: FarmBundle[]; rows: FarmRow[] })
               Salinity <span className="font-normal">dS/m</span>
             </th>
             <th scope="col" className="px-3 py-2 font-medium">
-              Growing now
-            </th>
-            <th scope="col" className="px-3 py-2 font-medium">
-              Plant next
+              Crop <span className="font-normal">now → next season</span>
             </th>
             <th scope="col" className="px-3 py-2 text-right font-medium">
               Yield <span className="font-normal">now → next</span>
             </th>
             <th scope="col" className="py-2 pr-6 pl-3 font-medium">
-              Market
+              Market <span className="font-normal">next crop</span>
             </th>
           </tr>
         </thead>
@@ -315,9 +302,8 @@ function NextSeason({ ranked, rows }: { ranked: FarmBundle[]; rows: FarmRow[] })
                 </Link>
               </td>
               <td className={cn("px-3 py-3 text-right tabular", s.row.overLimit && "font-semibold")}>{fmtNum(s.row.ece, 1)}</td>
-              <td className="px-3 py-3">{CROPS[s.bundle.farm.main_crop].name}</td>
-              <td className={cn("px-3 py-3", s.keep && "text-muted-foreground")}>
-                <PlantNext s={s} />
+              <td className="px-3 py-3">
+                <CropNowNext s={s} />
               </td>
               <td className="px-3 py-3 text-right whitespace-nowrap tabular">
                 {s.choice ? (
@@ -348,12 +334,12 @@ function NextSeason({ ranked, rows }: { ranked: FarmBundle[]; rows: FarmRow[] })
               </Link>
               <span className="shrink-0 text-sm text-muted-foreground tabular">{fmtNum(s.row.ece, 1)} dS/m</span>
             </div>
-            <div className={cn("text-sm", s.keep && "text-muted-foreground")}>
-              <PlantNext s={s} />
+            <div className="text-sm">
+              <CropNowNext s={s} />
             </div>
             {s.choice && !s.keep ? (
               <p className="mt-0.5 text-sm text-muted-foreground tabular">
-                {CROPS[s.bundle.farm.main_crop].name} {fmtNum(s.yieldNow, 0)}% → {s.choice.best.name.toLowerCase()} {fmtNum(s.choice.best.relativeYield, 0)}%
+                Yield {fmtNum(s.yieldNow, 0)}% → {fmtNum(s.choice.best.relativeYield, 0)}%
               </p>
             ) : null}
           </li>

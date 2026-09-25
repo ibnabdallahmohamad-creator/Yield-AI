@@ -17,6 +17,7 @@ const TITLE: Record<Section, string> = {
   home: "Home",
   insights: "Plan",
   farm: "Farms",
+  weather: "Weather",
   land: "Land use",
   devices: "Farms & devices",
   assistant: "Assistant",
@@ -80,7 +81,7 @@ export function AppHeader({ user }: { user: { name: string; email: string } }) {
             <>
               <li className="hidden sm:block">
                 <Link href="/dashboard" className="rounded-md px-1 font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">
-                  Farms
+                  Home
                 </Link>
               </li>
               <li aria-hidden="true" className="hidden text-muted-foreground/60 sm:block">
@@ -101,7 +102,7 @@ export function AppHeader({ user }: { user: { name: string; email: string } }) {
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          className="inline-flex size-11 items-center justify-center gap-2 rounded-full text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none sm:size-10 md:h-9 md:w-56 md:justify-start md:rounded-lg md:border md:bg-card md:px-3 md:hover:bg-card md:hover:ring-1 md:hover:ring-border"
+          className="hidden size-11 items-center justify-center gap-2 rounded-full text-sm text-muted-foreground sm:inline-flex transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none sm:size-10 md:h-9 md:w-56 md:justify-start md:rounded-lg md:border md:bg-card md:px-3 md:hover:bg-card md:hover:ring-1 md:hover:ring-border"
           aria-label="Search farms and pages (Ctrl K)"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />

@@ -79,7 +79,7 @@ test.describe("farm workspace", () => {
   test("What to do leads to all the advice and to the assistant", async ({ page }) => {
     const card = page.getByRole("region", { name: "What to do" });
     await expect(card).toContainText(/Do first|This week|When you can/);
-    await card.getByRole("button", { name: /All \d+ actions/ }).click();
+    await card.getByRole("button", { name: /All \d+ actions|Full advice/ }).click();
     await expect(page).toHaveURL(/tab=advice/);
     await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Ask AI to plan the week" })).toHaveAttribute("href", /\/dashboard\/assistant\?farm=shamal-greenhouses/);

@@ -140,7 +140,8 @@ function HourStrip({ forecast }: { forecast: HourlyForecast }) {
             {hours.map((h) => {
               if (h.temp_c == null) return <span key={h.time} />;
               const y = yOf(h.temp_c);
-              const hottest = h.temp_c === hot;
+              // Compared as shown: every hour that reads as the peak is marked, not just the exact maximum.
+              const hottest = hot != null && Math.round(h.temp_c) === Math.round(hot);
               return (
                 <span key={h.time} className="relative">
                   <span
@@ -166,9 +167,10 @@ function HourStrip({ forecast }: { forecast: HourlyForecast }) {
             const wet = mm >= 0.1 || prob >= 30;
             return (
               <div key={h.time} className="flex flex-col items-center gap-1 py-0.5">
-                <span className={cn("inline-flex items-center gap-0.5", wet && "font-semibold text-chart-3")}>
+                <span className={cn("inline-flex items-center gap-0.5 whitespace-nowrap", wet && "font-semibold text-chart-3")}>
                   <Droplets className="size-3.5 opacity-70" />
-                  {mm >= 0.1 ? `${fmtNum(mm, 1)}` : `${Math.round(prob)}%`}
+                  {/* Rain in mm when some is expected, else its chance: the unit tells them apart. */}
+                  {mm >= 0.1 ? `${fmtNum(mm, 1)} mm` : `${Math.round(prob)}%`}
                 </span>
                 <span className={cn("inline-flex items-center gap-0.5", h.gust_ms != null && h.gust_ms === gust && gust >= 10 && "font-semibold text-risk-medium-ink")}>
                   <WindArrow deg={h.wind_dir_deg} />

@@ -96,6 +96,8 @@ export function StatusMenu() {
             />
           </span>
           <span className={cn("hidden md:inline", streaming && "font-medium text-foreground")}>{streaming ? "Live" : sourceLabel}</span>
+          {/* Phones: a word, not a bare dot. */}
+          <span className={cn("md:hidden", streaming && "font-medium text-foreground")}>{streaming ? "Live" : status.source === "account" ? "Data" : "Demo"}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 divide-y p-4">

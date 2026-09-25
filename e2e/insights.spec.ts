@@ -15,7 +15,7 @@ test.describe("plan", () => {
     // The riskiest farm's actions lead.
     await expect(groups.first().getByRole("link").first()).toHaveText("Al Shamal Greenhouses");
 
-    const total = Number((await week.getByText(/^\d+ actions? across/).textContent())?.match(/^\d+/)?.[0]);
+    const total = Number((await page.getByText(/^\d+ actions? across/).textContent())?.match(/^\d+/)?.[0]);
     const showAll = week.getByRole("button", { name: `Show all ${total} actions` });
     await showAll.click();
     await expect(week.getByRole("button", { name: "Why" })).toHaveCount(total);
@@ -56,7 +56,8 @@ test.describe("plan", () => {
     await expect(page).toHaveURL(/view=season/);
     const season = page.getByRole("region", { name: "Next season" });
     await expect(season.getByRole("row")).toHaveCount(9);
-    await expect(season).toContainText(/Keep \w+/);
+    await expect(season).toContainText(/\w+ · keep/);
+    await expect(season).toContainText(/ then \w+/);
   });
 
   test("How it works explains the risk score", async ({ page }) => {

@@ -4,7 +4,7 @@
  * Phone navigation: five tabs — Home · Farm · Ask AI · Plan · More. "Farm" opens the farm you last
  * looked at; "More" holds Land use, devices and search.
  */
-import { ChevronRight, Cpu, House, LandPlot, ListChecks, MessagesSquare, MoreHorizontal, Search, Sparkles, Sprout } from "lucide-react";
+import { ChevronRight, CloudSun, Cpu, House, LandPlot, ListChecks, MessagesSquare, MoreHorizontal, Search, Sparkles, Sprout } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { sectionHref, useShell, type Section } from "@/components/shell/shell-context";
@@ -41,7 +41,7 @@ export function MobileTabs() {
   const { section, farmId, farms, setPaletteOpen } = useShell();
   const [more, setMore] = useState(false);
   const doFirst = farms.reduce((n, f) => n + f.doFirst, 0);
-  const inMore = section === "land" || section === "devices";
+  const inMore = section === "weather" || section === "land" || section === "devices";
 
   const tab = (s: Exclude<Section, "other">, label: string, icon: React.ReactNode, badge?: number) => (
     <Link href={sectionHref(s, farmId)} aria-current={section === s ? "page" : undefined} className={cn(TAB, section === s ? "text-primary" : "text-muted-foreground")}>
@@ -63,8 +63,9 @@ export function MobileTabs() {
       <nav aria-label="Main" data-chrome className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
         {tab("home", "Home", <House />)}
         {tab("farm", "Farm", <Sprout />)}
-        <Link href={sectionHref("assistant", farmId)} className={cn(TAB, "text-primary")} aria-current={section === "assistant" ? "page" : undefined}>
-          <span className="-mt-5 flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-forest-900/25 ring-4 ring-background">
+        {/* The raised tile keeps Ask AI prominent; its label only turns green when it's the page you're on. */}
+        <Link href={sectionHref("assistant", farmId)} className={cn(TAB, section === "assistant" ? "text-primary" : "text-muted-foreground")} aria-current={section === "assistant" ? "page" : undefined}>
+          <span className="-mt-[26px] flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-forest-900/25 ring-4 ring-background">
             <Sparkles />
           </span>
           Ask AI
@@ -84,6 +85,7 @@ export function MobileTabs() {
             <SheetDescription className="sr-only">Other sections and search</SheetDescription>
           </SheetHeader>
           <div className="space-y-1">
+            <MoreLink href={sectionHref("weather", farmId)} icon={<CloudSun />} label="Weather" hint="The forecast across your farms" onClick={() => setMore(false)} />
             <MoreLink href={sectionHref("land", farmId)} icon={<LandPlot />} label="Land use" hint="What to use a piece of land for" onClick={() => setMore(false)} />
             <MoreLink href="/dashboard/devices" icon={<Cpu />} label="Farms & devices" hint="Add a farm, connect an ESP32 probe" onClick={() => setMore(false)} />
             <MoreLink href={sectionHref("assistant", farmId)} icon={<MessagesSquare />} label="Chats" hint="Your saved conversations with the AI" onClick={() => setMore(false)} />
