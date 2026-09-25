@@ -59,3 +59,6 @@ next-env.d.ts
 # `npm run dataset:weather` and `npm run dataset:build`; the sample, stats and card stay in git.
 /data/dataset/cache/
 /data/dataset/unsloth/yield-ai-qatar.jsonl
+
+# ESP32 Wi-Fi credentials and pairing codes
+firmware/esp32/**/secrets.h
