@@ -9,12 +9,18 @@ import { SESSION_COOKIE, hasSupabaseAuthCookie, verifySessionToken } from "@/lib
 
 const SUPABASE_TIMEOUT_MS = 3000;
 
+function readEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 async function hasSupabaseSession(request: NextRequest, response: { current: NextResponse }): Promise<boolean> {
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  // Same lookup as lib/env.ts: an empty variable (e.g. a blank one on Vercel) falls through to the next name.
+  const url = readEnv("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL");
+  const key = readEnv("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   if (!url || !key || !hasSupabaseAuthCookie(request.cookies.getAll().map((c) => c.name))) return false;
 
   const supabase = createServerClient(url, key, {
