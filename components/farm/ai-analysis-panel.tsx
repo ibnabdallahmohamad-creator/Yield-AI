@@ -119,7 +119,7 @@ export function AiAnalysisPanel({ farmId }: { farmId: string }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:gap-6" aria-busy={busy}>
       <section aria-labelledby="ai-heading" className={cn(CARD, "flex flex-col gap-4")}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 id="ai-heading" className="flex items-center gap-2 text-lg font-semibold">
               <Bot className="size-5 text-primary" aria-hidden="true" />
@@ -129,10 +129,10 @@ export function AiAnalysisPanel({ farmId }: { farmId: string }) {
           </div>
           <Button variant="outline" size="sm" onClick={() => void load(undefined, true)} disabled={busy} aria-label="Run the analysis again">
             <RefreshCw className={cn("size-3.5", busy && "animate-spin")} aria-hidden="true" />
-            Refresh
+            <span className="max-sm:sr-only">Refresh</span>
           </Button>
         </div>
-        <form onSubmit={ask} className="flex flex-col gap-2 sm:flex-row">
+        <form onSubmit={ask} className="flex gap-2">
           <label htmlFor="ai-question" className="sr-only">
             Ask about this farm
           </label>
@@ -141,17 +141,17 @@ export function AiAnalysisPanel({ farmId }: { farmId: string }) {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             maxLength={500}
-            placeholder="Ask the model about this farm, e.g. How much should I irrigate this week?"
-            className="h-10 min-w-0 flex-1 rounded-lg border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            placeholder="Ask about this farm, e.g. how much to irrigate this week?"
+            className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-3 text-base outline-none sm:h-10 sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/60"
           />
-          <Button type="submit" className="h-10 px-4" disabled={busy || !question.trim()}>
+          <Button type="submit" className="h-11 shrink-0 px-4 sm:h-10" disabled={busy || !question.trim()}>
             <Send className="size-4" aria-hidden="true" />
             Ask
           </Button>
         </form>
         {state.status === "ready" && state.result.question ? (
           <p className="text-sm">
-            <span className="font-semibold text-muted-foreground">Q2 ·</span> {state.result.question}
+            <span className="font-semibold text-muted-foreground">Question ·</span> {state.result.question}
           </p>
         ) : null}
       </section>
@@ -197,7 +197,12 @@ function SourceLine({ result }: { result: FarmAnalysisResult }) {
         <p className="text-xs leading-relaxed text-muted-foreground">
           {result.model_error
             ? `The model didn't answer (${result.model_error}). The built-in engine wrote these sections from the same inputs, in the model's format.`
-            : "The model API isn't connected yet (AI_MODEL_URL). Until it is, the built-in engine writes these sections from exactly the inputs the model will get, in its output format."}
+            : (
+              <>
+                <span className="sm:hidden">Model not connected yet: the built-in engine answers in its format.</span>
+                <span className="max-sm:hidden">The model API isn&apos;t connected yet (AI_MODEL_URL). Until it is, the built-in engine writes these sections from exactly the inputs the model will get, in its output format.</span>
+              </>
+            )}
         </p>
       ) : null}
     </div>

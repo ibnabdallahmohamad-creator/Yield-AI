@@ -11,6 +11,7 @@ import { ENGINE_MODEL_NAME, type FarmAnalysisResult } from "./analysis-types";
 import type { ProbeMoisture } from "./esp32-units";
 import { askModel, modelConfigured } from "./model-client";
 import { buildLiveFarmExample, defaultQuestion } from "./model-input";
+import { probeWording } from "./probe-wording";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -67,7 +68,7 @@ async function run(user: AppUser, farmId: string, question: string | undefined):
         model_configured: true,
         model_error: null,
         input: example.input,
-        output: reply.answer,
+        output: probeWording(reply.answer),
         notes: example.notes,
         created_at: new Date().toISOString(),
         ms: reply.ms,
@@ -86,7 +87,7 @@ async function run(user: AppUser, farmId: string, question: string | undefined):
     model_configured: configured,
     model_error: modelError,
     input: example.input,
-    output: example.engine,
+    output: probeWording(example.engine),
     notes: example.notes,
     created_at: new Date().toISOString(),
     ms: null,

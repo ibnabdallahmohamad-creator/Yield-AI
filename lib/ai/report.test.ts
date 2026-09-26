@@ -114,6 +114,8 @@ describe("offline answers", () => {
     expect(detectTopics("Where is the farm?")[0]).toBe("location");
     expect(detectTopics("Where are the problem spots?")[0]).toBe("hotspots");
     expect(detectTopics("When can I spray?")[0]).toBe("forecast");
+    expect(detectTopics("How much should I irrigate this week?")[0]).toBe("irrigation");
+    expect(detectTopics("What is the weather this week?")[0]).toBe("forecast");
     expect(detectTopics("How much will this crop earn?")[0]).toBe("economics");
     expect(detectTopics("When is the harvest?")[0]).toBe("harvest");
     expect(detectTopics("What should I plant next season?")[0]).toBe("crop");

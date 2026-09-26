@@ -52,6 +52,10 @@ export function detectTopics(question: string): Topic[] {
   const topics = TOPIC_PATTERNS.filter(([, re]) => re.test(question)).map(([t]) => t);
   // "Where is the farm?" is about the location, not the problem spots.
   const focused = topics.includes("location") ? topics.filter((t) => t !== "hotspots") : topics;
+  // "How much should I irrigate this week?" is about irrigation (the same plan as the Today card), not the weather.
+  if (focused.includes("irrigation") && /irrigat|when should i water|how much water/i.test(question)) {
+    return ["irrigation", ...focused.filter((t) => t !== "irrigation")];
+  }
   return focused.length ? focused : ["summary"];
 }
 

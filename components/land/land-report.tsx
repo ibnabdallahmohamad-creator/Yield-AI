@@ -245,9 +245,11 @@ function Options({ report }: { report: LandReport }) {
 }
 
 function Research({ research }: { research: LandResearch }) {
+  const fromModel = research.status === "live" && Boolean(research.model) && !/claude/i.test(research.model ?? "");
+  const at = research.searched_at ? ` · ${formatDay(qatarDay(research.searched_at))}, ${formatTime(research.searched_at)}` : "";
   const status =
     research.status === "live"
-      ? `Live search${research.searched_at ? ` · ${formatDay(qatarDay(research.searched_at))}, ${formatTime(research.searched_at)}` : ""}`
+      ? `${fromModel ? `Harvestar AI model (${research.model})` : "Live search"}${at}`
       : research.status === "failed"
         ? "Live search unavailable · built-in reference"
         : "Built-in Qatar reference";
@@ -256,7 +258,7 @@ function Research({ research }: { research: LandResearch }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 id="research-heading" className={H2}>
           <Newspaper className="size-4 text-muted-foreground" aria-hidden="true" />
-          News and markets
+          {fromModel ? "Harvestar AI analysis" : "News and markets"}
         </h2>
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Globe className="size-3.5" aria-hidden="true" />

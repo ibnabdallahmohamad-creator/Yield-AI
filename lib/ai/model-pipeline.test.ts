@@ -7,6 +7,10 @@ import type { Farm } from "../types";
 import { ecToDsPerM, fahrenheitToCelsius, moistureSurvey, normalizeDeviceUnits, type ProbeMoisture } from "./esp32-units";
 import { modelFormat, modelRequest, replyText } from "./model-client";
 import { buildLiveFarmExample, focusOf } from "./model-input";
+import { askModelAboutLand } from "./land-model";
+import { probeWording } from "./probe-wording";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 vi.mock("server-only", () => ({}));
 
@@ -163,5 +167,65 @@ describe("live model input (Q2)", () => {
     expect(focusOf("What will I earn?")).toBe("overall");
     expect(focusOf("What price will I get?")).toBe("economics");
     expect(focusOf("What should I plant next season?")).toBe("next crop");
+  });
+});
+
+describe("live land question (Q1)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("sends the training-format land input and turns the model's answer into the research panel", async () => {
+    const now = Date.now();
+    const today = qatarDateString(now);
+    // A land_analysis answer from the training set stands in for the model's reply.
+    const sample = readFileSync(path.join(process.cwd(), "data/dataset/unsloth/sample.jsonl"), "utf8")
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { messages: Array<{ content: string }> })
+      .find((m) => m.messages.at(-1)!.content.includes('"land_analysis"'))!;
+    const reply = sample.messages.at(-1)!.content;
+    const sent: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("model.test")) {
+          sent.push(String(init?.body));
+          return new Response(JSON.stringify({ choices: [{ message: { content: reply } }] }), { headers: { "content-type": "application/json" } });
+        }
+        if (u.includes("archive")) {
+          const time = Array.from({ length: 365 }, (_, i) => addDays(today, i - 365));
+          const daily: Record<string, unknown> = { time };
+          for (const k of DAILY_VARS) daily[k] = time.map((_, i) => (k === "wind_direction_10m_dominant" ? 315 : k === "precipitation_sum" ? 0 : 20 + (i % 15)));
+          return new Response(JSON.stringify({ latitude: 25.4, longitude: 51.4, elevation: 30, daily }), { headers: { "content-type": "application/json" } });
+        }
+        return new Response(JSON.stringify(openMeteoResponse(today)), { headers: { "content-type": "application/json" } });
+      }),
+    );
+    vi.stubEnv("AI_MODEL_URL", "https://model.test/v1");
+    vi.resetModules();
+    const { askModelAboutLand: ask } = await import("./land-model");
+    const research = await ask({ lat: 25.4165, lng: 51.3985, area_ha: 2, budget: "medium", water: { source: "groundwater", ec: 1.4 }, robot: null, now });
+
+    expect(sent).toHaveLength(1);
+    const user = (JSON.parse(sent[0]!) as { messages: Array<{ role: string; content: string }> }).messages[1]!.content;
+    expect(user.startsWith("Q1: What is the best use for my 2 ha of land here?\n\n{")).toBe(true);
+    expect(Object.keys((JSON.parse(user.slice(user.indexOf("{"))) as { inputs: object }).inputs)).toEqual([...INPUT_KEYS]);
+    expect(research).toMatchObject({ status: "live", model: expect.any(String) });
+    expect(research!.headline.length).toBeGreaterThan(20);
+    expect(research!.highlights.length).toBeGreaterThan(0);
+  });
+
+  it("is skipped without AI_MODEL_URL", async () => {
+    expect(await askModelAboutLand({ lat: 25.4, lng: 51.4, area_ha: 1, budget: "low", water: { source: "groundwater", ec: null }, robot: null })).toBe(null);
+  });
+});
+
+describe("probe wording", () => {
+  it("rewords the training set's robot as the farm's probes, keeping numbers and shape", () => {
+    const out = probeWording({ title: "Soil water from the robot", items: ["The robot's mean of 11.4%", "no robot survey"], n: 3 });
+    expect(out).toEqual({ title: "Soil water from the probes", items: ["The probes' mean of 11.4%", "no probe survey"], n: 3 });
   });
 });

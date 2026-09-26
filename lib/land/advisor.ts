@@ -7,6 +7,9 @@
 import "server-only";
 import { CROPS, type CropId } from "../agronomy-tables";
 import { lastDataIndex } from "../ai/analysis";
+import { askModelAboutLand } from "../ai/land-model";
+import { modelConfigured } from "../ai/model-client";
+import type { RobotSurvey } from "../dataset/soil";
 import { qatarDateString } from "../data/time";
 import { formatShortDay } from "../format";
 import { FOOD_SECURITY_REVIEWED, NATIONAL_GOALS, WATER_POLICY, goalFor, type Source } from "../qatar/food-security";
@@ -49,6 +52,24 @@ function sensorSummary(bundle: FarmBundle): SiteSensors | null {
     humidity_mean_pct: meanOf(days.map((d) => (d.rhMax != null && d.rhMin != null ? (d.rhMax + d.rhMin) / 2 : null))),
     ece_dS_m: meanOf([days[days.length - 1].ece]),
     measured,
+  };
+}
+
+/** The farm's latest daily soil-moisture survey across its probes, in the model's input shape. */
+function probeSurvey(bundle: FarmBundle): RobotSurvey | null {
+  const last = lastDataIndex(bundle);
+  const values = (i: number) => (bundle.days[i]?.sensors ?? []).map((s) => s.moisture).filter((v): v is number => v != null);
+  const now = last >= 0 ? values(last) : [];
+  if (!now.length) return null;
+  const week = last >= 7 ? values(last - 7) : [];
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return {
+    mean_vwc_pct: r1(avg(now)),
+    min_vwc_pct: r1(Math.min(...now)),
+    max_vwc_pct: r1(Math.max(...now)),
+    readings: now.length,
+    change_7d_pct_points: week.length ? r1(avg(now) - avg(week)) : 0,
   };
 }
 
@@ -121,7 +142,7 @@ export async function adviseLandUse(req: LandRequest, data: DashboardData, optio
   const lng = bundle ? bundle.farm.lng : req.lng!;
   if (!isInQatar(lat, lng)) throw new LandInputError("That point isn't in Qatar. Enter a latitude around 24.5–26.2 and a longitude around 50.7–51.7.");
 
-  const research = options.research && req.research && researchAvailable();
+  const research = options.research && req.research && (researchAvailable() || modelConfigured());
   const key = JSON.stringify([lat.toFixed(4), lng.toFixed(4), req.area_ha, req.water_source, req.water_ec_dS_m ?? null, req.budget, bundle?.farm.id ?? null, research]);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.report;
@@ -142,7 +163,25 @@ export async function adviseLandUse(req: LandRequest, data: DashboardData, optio
 
   let researchOut: LandResearch;
   let adjusted = ranked;
-  const live = research
+  // The fine-tuned model answers the land question first (AI_MODEL_URL); Claude's web research is the fallback.
+  let fromModel: LandResearch | null = null;
+  if (options.research && req.research && modelConfigured()) {
+    try {
+      fromModel = await askModelAboutLand({
+        lat,
+        lng,
+        area_ha: req.area_ha,
+        budget: req.budget,
+        water: { source: req.water_source, ec: water.ec_dS_m },
+        robot: bundle ? probeSurvey(bundle) : null,
+      });
+    } catch (error) {
+      console.warn("[land] Harvestar AI model unavailable, falling back:", error instanceof Error ? error.message : error);
+    }
+  }
+  const live = fromModel
+    ? { research: fromModel, adjustments: [] }
+    : research
     ? await researchLandUse({ as_of: asOf, season, location, area_ha: req.area_ha, budget: req.budget, water, climate, sensors, options: ranked })
     : null;
   if (live) {
@@ -178,7 +217,11 @@ export async function adviseLandUse(req: LandRequest, data: DashboardData, optio
       "Water need: the site's monthly ET₀ over the last year (Open-Meteo archive, FAO-56 Penman–Monteith) × crop coefficient, plus the FAO-29 leaching requirement.",
       "National goals: Qatar National Food Security Strategy 2030 targets and the latest reported self-sufficiency.",
       "Score: water 30%, national goal 20%, market 15%, budget 15%, water policy 10%, site 10%. A product heuristic for comparing options, not a published index.",
-      ...(researchOut.status === "live" ? ["Live research: Claude searched current news and markets and moved scores by up to ±10 where it found evidence."] : []),
+      ...(fromModel
+        ? ["Harvestar AI model: the fine-tuned model answered the land question from the same nine inputs it was trained on (site, FAO grid, a year of Open-Meteo climate, the 7-day forecast, water and probes)."]
+        : researchOut.status === "live"
+          ? ["Live research: Claude searched current news and markets and moved scores by up to ±10 where it found evidence."]
+          : []),
     ],
   };
   cache.set(key, { at: Date.now(), report });

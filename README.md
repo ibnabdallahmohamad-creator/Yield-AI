@@ -289,6 +289,14 @@ section by section, next to the inputs it read. If the model is unset, slow (55 
 off-format, the built-in agronomy engine answers in the same format, and the tab says so.
 `GET /api/analysis?farm=<id>` (or `POST {farm_id, question}`) returns the same result as JSON.
 
+The land question (task `land_analysis`, "Q1") is wired the same way: with `AI_MODEL_URL` set, **Land use →
+Analyse land** sends the model the Q1 input (the point, its FAO site grid, the last 12 months of
+Open-Meteo climate, the 7-day forecast, water, budget and, for a farm, its probes' moisture survey) and
+shows its answer as the "Harvestar AI analysis" panel (`lib/ai/land-model.ts`); Claude's live web research
+and the built-in reference remain the fallbacks. The training set calls the moisture source "the field
+robot"; answers shown on the site say "the probes" instead (`lib/ai/probe-wording.ts`), while the model's
+input keeps the training wording.
+
 ## ESP32 devices
 
 Each account connects its own ESP32 probes over Wi-Fi. No keys to copy by hand:
