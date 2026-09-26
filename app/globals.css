@@ -422,6 +422,18 @@
   white-space: nowrap;
   cursor: pointer;
 }
+/* A neighbour already has the right side: the chip goes left of the dot, or away (value in the tooltip) */
+.yai-wx-farm.is-left {
+  flex-direction: row-reverse;
+  transform: translate(calc(-100% + 6px), -50%);
+}
+.yai-wx-farm.is-left .yai-wx-name {
+  left: auto;
+  right: 0;
+}
+.yai-wx-farm.is-dot .yai-wx-val {
+  display: none;
+}
 .yai-wx-dot {
   flex: none;
   width: 12px;

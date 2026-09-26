@@ -278,7 +278,35 @@ function IsolineLayer({ field, def, t, enabled, tone }: { field: WeatherField; d
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-function farmIcon(name: string, value: number, def: WeatherLayerDef, selected: boolean, showName: boolean, windDeg: number | null): L.DivIcon {
+/** Where a farm's value chip sits: right of its dot, left of it, or hidden (dot only) when both sides are taken. */
+type ChipSide = "right" | "left" | "none";
+
+const CHIP_W = 56;
+const CHIP_H = 22;
+const DOT_R = 8;
+
+type Box = [number, number, number, number];
+const overlaps = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+
+/** Chip sides at this zoom so neighbouring farms' values don't cover each other; the selected farm always keeps its chip. */
+function chipSides(map: L.Map, farms: WeatherMapFarm[], zoom: number, selectedId: string | null): Map<string, ChipSide> {
+  const pts = farms.map((f) => ({ id: f.id, p: map.project([f.lat, f.lng], zoom) }));
+  const placed: Box[] = pts.map(({ p }) => [p.x - DOT_R, p.y - DOT_R, p.x + DOT_R, p.y + DOT_R]);
+  const order = [...pts].sort((a, b) => Number(b.id === selectedId) - Number(a.id === selectedId));
+  const out = new Map<string, ChipSide>();
+  for (const { id, p } of order) {
+    // The chip starts 10px from the dot's centre (6px of dot plus the 4px gap), clear of its own dot.
+    const right: Box = [p.x + 10, p.y - CHIP_H / 2, p.x + 10 + CHIP_W, p.y + CHIP_H / 2];
+    const left: Box = [p.x - 10 - CHIP_W, p.y - CHIP_H / 2, p.x - 10, p.y + CHIP_H / 2];
+    const free = (box: Box) => !placed.some((b) => overlaps(box, b));
+    const side: ChipSide = free(right) ? "right" : free(left) ? "left" : id === selectedId ? "right" : "none";
+    if (side !== "none") placed.push(side === "right" ? right : left);
+    out.set(id, side);
+  }
+  return out;
+}
+
+function farmIcon(name: string, value: number, def: WeatherLayerDef, selected: boolean, showName: boolean, windDeg: number | null, side: ChipSide): L.DivIcon {
   const c = paletteColor(def.palette, value);
   // Colours with little alpha (dry rain, clear sky) get a neutral chip.
   const solid = c[3] > 150;
@@ -290,7 +318,7 @@ function farmIcon(name: string, value: number, def: WeatherLayerDef, selected: b
     windDeg != null
       ? `<svg class="yai-wx-arrow" viewBox="0 0 12 12" style="transform: rotate(${Math.round(windDeg + 180)}deg)" aria-hidden="true"><path d="M6 1 L9.5 9 L6 7.2 L2.5 9 Z" fill="currentColor"/></svg>`
       : "";
-  const html = `<div class="yai-wx-farm${selected ? " is-selected" : ""}"><span class="yai-wx-dot"></span><span class="yai-wx-val" style="background:${bg};color:${fg}">${arrow}${escapeHtml(text)}${unit}</span>${showName ? `<span class="yai-wx-name">${escapeHtml(name)}</span>` : ""}</div>`;
+  const html = `<div class="yai-wx-farm${selected ? " is-selected" : ""}${side === "left" ? " is-left" : side === "none" ? " is-dot" : ""}"><span class="yai-wx-dot"></span><span class="yai-wx-val" style="background:${bg};color:${fg}">${arrow}${escapeHtml(text)}${unit}</span>${showName ? `<span class="yai-wx-name">${escapeHtml(name)}</span>` : ""}</div>`;
   return L.divIcon({ className: "yai-divicon", html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
@@ -300,6 +328,7 @@ function FarmMarker({
   def,
   selected,
   showName,
+  side,
   onSelect,
 }: {
   farm: WeatherMapFarm;
@@ -307,13 +336,14 @@ function FarmMarker({
   def: WeatherLayerDef;
   selected: boolean;
   showName: boolean;
+  side: ChipSide;
   onSelect?: (id: string) => void;
 }) {
   const value = sampler.value(def.field, farm.lat, farm.lng);
   const wind = def.key === "wind" || def.key === "gust" ? sampler.wind(farm.lat, farm.lng) : null;
   const deg = wind ? windFromDeg(wind.u, wind.v) : null;
   const text = formatWeather(def, value, false);
-  const icon = useMemo(() => farmIcon(farm.name, value, def, selected, showName, deg), [farm.name, value, def, selected, showName, deg]);
+  const icon = useMemo(() => farmIcon(farm.name, value, def, selected, showName, deg, side), [farm.name, value, def, selected, showName, deg, side]);
   return (
     <Marker
       position={[farm.lat, farm.lng]}
@@ -329,6 +359,37 @@ function FarmMarker({
       }}
     />
   );
+}
+
+function FarmMarkers({
+  farms,
+  sampler,
+  def,
+  selectedId,
+  zoom,
+  onSelect,
+}: {
+  farms: WeatherMapFarm[];
+  sampler: FieldSampler;
+  def: WeatherLayerDef;
+  selectedId: string | null;
+  zoom: number;
+  onSelect?: (id: string) => void;
+}) {
+  const map = useMap();
+  const sides = useMemo(() => chipSides(map, farms, zoom, selectedId), [map, farms, zoom, selectedId]);
+  return farms.map((f) => (
+    <FarmMarker
+      key={f.id}
+      farm={f}
+      sampler={sampler}
+      def={def}
+      selected={f.id === selectedId}
+      showName={f.id === selectedId || zoom >= 10 || farms.length === 1}
+      side={sides.get(f.id) ?? "right"}
+      onSelect={onSelect}
+    />
+  ));
 }
 
 let pinIconCache: L.DivIcon | null = null;
@@ -453,17 +514,7 @@ export default function WeatherMap({
       <IsolineLayer field={field} def={def} t={t} enabled={isolines} tone={tone} />
       <WindLayer field={field} t={t} mode={streaks} tone={tone} />
 
-      {farms.map((f) => (
-        <FarmMarker
-          key={f.id}
-          farm={f}
-          sampler={sampler}
-          def={def}
-          selected={f.id === selectedId}
-          showName={f.id === selectedId || zoom >= 10 || farms.length === 1}
-          onSelect={onSelectFarm}
-        />
-      ))}
+      <FarmMarkers farms={farms} sampler={sampler} def={def} selectedId={selectedId ?? null} zoom={zoom} onSelect={onSelectFarm} />
       {pin ? <Marker position={[pin.lat, pin.lng]} icon={pinIcon()} interactive={false} keyboard={false} zIndexOffset={2000} /> : null}
 
       <Pointer onHover={setHover} onClick={(lat, lng) => onPin?.({ lat, lng })} />

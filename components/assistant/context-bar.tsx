@@ -2,6 +2,7 @@
 
 import { CalendarDays } from "lucide-react";
 import { HealthDot } from "@/components/dashboard/risk-badge";
+import { dotTone } from "@/components/assistant/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { asOfLabel } from "@/lib/assistant";
 import { formatWeekday } from "@/lib/format";
@@ -33,7 +34,7 @@ export function FarmSelect({
         <SelectValue placeholder="Pick a farm">
           {current ? (
             <span className="flex min-w-0 items-center gap-2">
-              <HealthDot tone={current.reasonTone} />
+              <HealthDot tone={dotTone(current)} />
               <span className="truncate">{current.name}</span>
             </span>
           ) : null}
@@ -43,7 +44,7 @@ export function FarmSelect({
         {farms.map((f) => (
           <SelectItem key={f.id} value={f.id} className="py-2">
             <span className="flex min-w-0 items-start gap-2.5">
-              <HealthDot tone={f.reasonTone} className="mt-1.5" />
+              <HealthDot tone={dotTone(f)} className="mt-1.5" />
               <span className="min-w-0">
                 <span className="block truncate font-medium">{f.name}</span>
                 <span className="block truncate text-xs text-muted-foreground">

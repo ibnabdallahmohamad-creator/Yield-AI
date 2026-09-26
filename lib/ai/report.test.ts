@@ -9,6 +9,7 @@ import type { DashboardData, WeatherDay } from "../types";
 import { buildChatContext } from "./context";
 import type { AiInsight, ChatContext } from "./contract";
 import { answerOffline, detectTopics } from "./offline";
+import { buildOutlook } from "./farm-facts";
 import { formatDays } from "./report";
 
 const TODAY = "2026-09-24";
@@ -57,6 +58,28 @@ beforeAll(() => {
 });
 
 const contextOf = (id: string): ChatContext => buildChatContext(data.farms.find((b) => b.farm.id === id)!, data)!;
+
+describe("7-day outlook", () => {
+  it("puts the first irrigation on the Today card's day, with its depth", () => {
+    let checked = 0;
+    for (const b of data.farms) {
+      const day = b.days[b.days.length - 1];
+      if (!day || day.daysToIrrigation == null || day.grossDepth == null) continue;
+      const inDays = Math.round(Math.max(0, day.daysToIrrigation));
+      const o = buildOutlook(b, day)!;
+      if (inDays === 0) {
+        expect(o.assumes_irrigation_today).toBe(true);
+        continue;
+      }
+      if (inDays > o.days.length) continue;
+      const first = o.days.findIndex((d) => (d.irrigate_mm ?? 0) > 0);
+      expect(first + 1).toBe(inDays);
+      expect(o.days[first].irrigate_mm).toBe(Math.round(day.grossDepth));
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
 
 describe("report sections", () => {
   it("writes every section for every farm", () => {

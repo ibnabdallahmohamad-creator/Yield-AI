@@ -171,15 +171,19 @@ export function buildOutlook(bundle: FarmBundle, day: FarmDay): Outlook | null {
   const heat = HEAT_STRESS_C[farm.main_crop];
   let dr = day.dr;
   let assumesToday = false;
-  if (dr != null && day.raw > 0 && dr >= day.raw) {
+  // The first irrigation lands where the Today card and the plan put it (daysToIrrigation, rounded)
+  // with the depth they show, so every view names the same day; later ones follow the forecast.
+  const firstIn = day.daysToIrrigation != null && day.grossDepth != null ? Math.round(Math.max(0, day.daysToIrrigation)) : null;
+  if (dr != null && ((day.raw > 0 && dr >= day.raw) || firstIn === 0)) {
     dr = 0;
     assumesToday = true;
   }
+  let pending = !assumesToday && firstIn != null && firstIn >= 1 ? firstIn : null;
   const canProject = dr != null;
   let irrigations = 0;
   let gross = 0;
   let use = 0;
-  const days: OutlookDay[] = future.map((w) => {
+  const days: OutlookDay[] = future.map((w, i) => {
     const dap = daysBetween(farm.planting_date, w.date);
     const kc = kcForDay(bundle.kcAdjusted, crop.stageLengths_days, dap).kc;
     const et0 = w.et0 ?? day.et0;
@@ -189,8 +193,10 @@ export function buildOutlook(bundle: FarmBundle, day: FarmDay): Outlook | null {
       use += etc;
       const raw = adjustedDepletionFraction(crop.depletionFraction_p, etc) * day.taw;
       dr = Math.min(day.taw, Math.max(0, dr + etc - effectiveRain_mm(w.precip)));
-      if (dr >= raw) {
-        irrigate = irrigationDepthWithLeaching_mm(dr, day.lr);
+      const first = pending != null && i + 1 === pending;
+      if (first || (pending == null && dr >= raw)) {
+        irrigate = first ? day.grossDepth! : irrigationDepthWithLeaching_mm(dr, day.lr);
+        pending = null;
         irrigations++;
         gross += irrigate;
         dr = 0;

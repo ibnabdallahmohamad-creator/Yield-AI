@@ -5,6 +5,7 @@ import type { ManagedFarm } from "@/components/devices/types";
 import { isDemoUser } from "@/lib/account/store";
 import { CROP_IDS, CROPS } from "@/lib/agronomy-tables";
 import { requireUser } from "@/lib/auth/session";
+import { rankFarms } from "@/lib/dashboard";
 import { getDashboardFor } from "@/lib/data/repository";
 
 export const metadata: Metadata = { title: "Farms & devices" };
@@ -21,7 +22,8 @@ export default async function DevicesPage() {
       </div>
     );
   }
-  const farms: ManagedFarm[] = data.farms.map((b) => {
+  // Riskiest first, the same order as the sidebar.
+  const farms: ManagedFarm[] = rankFarms(data.farms).map((b) => {
     const lastDay = b.days.findLast((d) => d !== null);
     return {
       id: b.farm.id,

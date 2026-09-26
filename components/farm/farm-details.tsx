@@ -235,9 +235,10 @@ export function FarmDetails({
               onHistoryOpenChange={setHistoryOpen}
               pulse={pulse}
               single
-              // Header, tabs and KPIs take ~400px: the map fills the rest of the first screen.
-              heightClassName="h-[max(320px,45vh)] lg:h-[clamp(360px,calc(100dvh-400px),620px)]"
-              className="xl:col-start-1 xl:row-start-1"
+              // Header, tabs and KPIs take ~400px: the map fills the rest of the first screen, and on
+              // wide screens stretches to the "What to do" card beside it so the card has no empty strip.
+              heightClassName="h-[max(320px,45vh)] lg:h-[clamp(360px,calc(100dvh-400px),620px)] xl:h-auto xl:min-h-[clamp(360px,calc(100dvh-400px),620px)] xl:flex-1"
+              className="xl:col-start-1 xl:row-start-1 xl:flex xl:flex-col"
             />
           </div>
           {waiting ? null : (

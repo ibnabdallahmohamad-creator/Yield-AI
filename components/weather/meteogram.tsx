@@ -421,7 +421,7 @@ export function Meteogram({
             ) : null,
           )}
           {dry ? (
-            <text x={(x0 + x1) / 2} y={ROWS.rain.top + ROWS.rain.h / 2 + 4} textAnchor="middle" fontSize={12} fill={C.axis}>
+            <text x={x0 + 10} y={ROWS.rain.top + ROWS.rain.h / 2 + 4} fontSize={12} fill={C.axis}>
               Dry: no rain expected
             </text>
           ) : null}

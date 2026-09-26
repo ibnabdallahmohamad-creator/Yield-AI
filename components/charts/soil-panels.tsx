@@ -394,10 +394,10 @@ function LossStrip({ rows, dates, yWidth, syncId, narrow, height }: { rows: Char
 
 const SHORT_CLASS: Record<string, string> = {
   "non-saline": "Non-saline",
-  slightly: "Slightly saline",
-  moderately: "Moderately",
-  strongly: "Strongly",
-  "very-strongly": "Very strongly",
+  slightly: "Slight salt",
+  moderately: "Moderate salt",
+  strongly: "Strong salt",
+  "very-strongly": "Very strong",
 };
 const NARROW_CLASS: Record<string, string> = {
   "non-saline": "None",

@@ -255,7 +255,7 @@ export function DevicesManager({
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
+    <div className="max-w-5xl space-y-5">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-60 flex-1">
           <h1 className="font-display text-[1.75rem] leading-tight font-semibold tracking-tight">Farms &amp; devices</h1>

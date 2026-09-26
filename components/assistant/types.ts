@@ -1,6 +1,7 @@
 import type { ChatAnswerSource, Conversation, MessageFeedback, RiskLevel } from "@/lib/ai/contract";
 import type { ConversationWithMessages } from "@/lib/chat/core";
 import type { HealthTone } from "@/lib/dashboard";
+import { RISK_TONE } from "@/components/dashboard/risk-badge";
 
 /** What the assistant knows about each farm (kept small: no readings are sent to the browser). */
 export interface AssistantFarm {
@@ -17,6 +18,11 @@ export interface AssistantFarm {
   prompts: string[];
   /** False until the farm's first probe reading: there is nothing to answer from yet. */
   hasReadings: boolean;
+}
+
+/** A farm's dot: its risk level, as in the sidebar and on Home; the reason's tone before any assessment. */
+export function dotTone(farm: Pick<AssistantFarm, "riskLevel" | "reasonTone">): HealthTone {
+  return farm.riskLevel ? RISK_TONE[farm.riskLevel] : farm.reasonTone;
 }
 
 /** Everything the assistant page needs on first paint. */

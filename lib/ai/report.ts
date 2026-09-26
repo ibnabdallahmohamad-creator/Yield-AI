@@ -175,6 +175,18 @@ export function buildWarnings(bundle: FarmBundle, day: FarmDay, facts: FarmFacts
 // Insights
 // ---------------------------------------------------------------------------
 
+/** What a month's moisture change means, given how much of the easy water is used now. */
+function moistureNote(changePct: number, deficitPct: number | null): string {
+  if (changePct < 0) {
+    return deficitPct != null && deficitPct < 100
+      ? "Drier than a month ago but not yet past the irrigation trigger; check run times and emitter flow before it is."
+      : "Irrigation isn't keeping up with crop water use; check run times and emitter flow.";
+  }
+  return deficitPct != null && deficitPct <= 10
+    ? "Wetter than a month ago and close to field capacity; make sure the field drains and roots aren't sitting in water."
+    : "Wetter than a month ago, and still below field capacity: irrigation is keeping up with the crop.";
+}
+
 export function buildFindings(bundle: FarmBundle, index: number, day: FarmDay, facts: FarmFacts): Finding[] {
   const crop = CROPS[bundle.farm.main_crop];
   const out: Finding[] = [];
@@ -231,7 +243,7 @@ export function buildFindings(bundle: FarmBundle, index: number, day: FarmDay, f
   if (moist.changePct != null && Math.abs(moist.changePct) >= 10 && moist.from != null) {
     out.push({
       title: `Soil moisture ${moist.changePct < 0 ? "down" : "up"} ${n0(Math.abs(moist.changePct))}% in ${moist.days} days`,
-      detail: `From ${n1(moist.from)}% to ${n1(moist.to)}%. ${moist.changePct < 0 ? "Irrigation isn't keeping up with crop water use; check run times and emitter flow." : "Wetter than a month ago; make sure the field drains and roots aren't sitting in water."}`,
+      detail: `From ${n1(moist.from)}% to ${n1(moist.to)}%. ${moistureNote(moist.changePct, day.deficitPct)}`,
     });
   } else {
     const loc = facts.location;

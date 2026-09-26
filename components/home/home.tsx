@@ -245,70 +245,75 @@ export function Home({
         </ul>
       </header>
 
-      {/* Desktop: farms then water on the left; do first then the map (filling the column) on the right. */}
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:[grid-template-areas:'farms_todo'_'farms_map'_'water_map'] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
-        <section aria-labelledby="farms-heading" className={cn(CARD, "overflow-hidden md:max-xl:col-span-2 xl:[grid-area:farms]")}>
-          <h2 id="farms-heading" className="px-4 pt-4 pb-3 text-base font-semibold sm:px-5">
-            Farms
-          </h2>
-          <div className="hidden md:block">
-            <FarmTable rows={rows} flashes={flashes} />
-          </div>
-          <div className="md:hidden">
-            <FarmList rows={rows} flashes={flashes} />
-          </div>
-        </section>
+      {/* Desktop: farms then water on the left; do first then the map (filling the column) on the right.
+          Two independent columns, so a short farm list leaves no empty space inside its card. Below xl
+          the column wrappers dissolve (display: contents) into one grid: phones read do first → farms →
+          water → map. */}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-6">
+          <section aria-labelledby="farms-heading" className={cn(CARD, "overflow-hidden md:max-xl:col-span-2")}>
+            <h2 id="farms-heading" className="px-4 pt-4 pb-3 text-base font-semibold sm:px-5">
+              Farms
+            </h2>
+            <div className="hidden md:block">
+              <FarmTable rows={rows} flashes={flashes} />
+            </div>
+            <div className="md:hidden">
+              <FarmList rows={rows} flashes={flashes} />
+            </div>
+          </section>
+          <IrrigationCard rows={rows} />
+        </div>
 
-        <section aria-labelledby="dofirst-heading" className={cn(CARD, "p-4 sm:p-5 max-md:order-first xl:[grid-area:todo]")}>
-          <h2 id="dofirst-heading" className="text-base font-semibold">
-            Do first this week
-          </h2>
-          {doFirst.length > 0 ? (
-            <ol className="mt-2 divide-y">
-              {doFirst.slice(0, 3).map(({ rec, farm }) => (
-                <li key={`${farm.id}-${rec.title}`} className="relative flex gap-3 py-3">
-                  <HealthDot tone={PRIORITY_TONE[rec.priority]} className="mt-1.5 ring-0" />
-                  <div className="min-w-0">
-                    <Link href={`${farmTabHref(farm.id, "advice")}#${actionAnchor(rec.title)}`} className={cn(ROW_LINK, "text-sm leading-snug text-pretty")}>
-                      {rec.title}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{farm.name}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : urgent.length > 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">All {urgent.length} urgent actions are done. The plan has the rest of the week.</p>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">Nothing urgent. Every farm is in range; keep the current schedules.</p>
-          )}
-          <Link href="/dashboard/insights" className={cn(LINK, "mt-1")}>
-            {doFirst.length > 3 ? `See all ${doFirst.length} on the plan` : "Open the plan"} <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-        </section>
-
-        <IrrigationCard rows={rows} className="xl:[grid-area:water]" />
-
-        <OverviewMap
-          farms={ranked}
-          bundle={picked}
-          metricKey={metricKey}
-          onMetricChange={setMetricKey}
-          onSelect={setPickedId}
-          dates={dates}
-          dateIndex={shownIndex}
-          onDateIndex={changeDate}
-          compare={compare}
-          onCompareChange={changeCompare}
-          thenIndex={thenIndex}
-          onThenIndex={setThenIndex}
-          historyOpen={historyOpen}
-          onHistoryOpenChange={setHistoryOpen}
-          pulse={pulse}
-          overlay={pickedRow ? <PickedFarm row={pickedRow} onClose={() => setPickedId(null)} /> : null}
-          heightClassName="h-[360px] sm:h-[440px] xl:h-full xl:min-h-[20rem]"
-          className="md:max-xl:col-span-2 xl:h-full xl:[grid-area:map]"
-        />
+        <div className="contents xl:flex xl:flex-col xl:gap-6">
+          <section aria-labelledby="dofirst-heading" className={cn(CARD, "p-4 sm:p-5 max-md:order-first")}>
+            <h2 id="dofirst-heading" className="text-base font-semibold">
+              Do first this week
+            </h2>
+            {doFirst.length > 0 ? (
+              <ol className="mt-2 divide-y">
+                {doFirst.slice(0, 3).map(({ rec, farm }) => (
+                  <li key={`${farm.id}-${rec.title}`} className="relative flex gap-3 py-3">
+                    <HealthDot tone={PRIORITY_TONE[rec.priority]} className="mt-1.5 ring-0" />
+                    <div className="min-w-0">
+                      <Link href={`${farmTabHref(farm.id, "advice")}#${actionAnchor(rec.title)}`} className={cn(ROW_LINK, "text-sm leading-snug text-pretty")}>
+                        {rec.title}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">{farm.name}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : urgent.length > 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">All {urgent.length} urgent actions are done. The plan has the rest of the week.</p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Nothing urgent. Every farm is in range; keep the current schedules.</p>
+            )}
+            <Link href="/dashboard/insights" className={cn(LINK, "mt-1")}>
+              {doFirst.length > 3 ? `See all ${doFirst.length} on the plan` : "Open the plan"} <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </section>
+          <OverviewMap
+            farms={ranked}
+            bundle={picked}
+            metricKey={metricKey}
+            onMetricChange={setMetricKey}
+            onSelect={setPickedId}
+            dates={dates}
+            dateIndex={shownIndex}
+            onDateIndex={changeDate}
+            compare={compare}
+            onCompareChange={changeCompare}
+            thenIndex={thenIndex}
+            onThenIndex={setThenIndex}
+            historyOpen={historyOpen}
+            onHistoryOpenChange={setHistoryOpen}
+            pulse={pulse}
+            overlay={pickedRow ? <PickedFarm row={pickedRow} onClose={() => setPickedId(null)} /> : null}
+            heightClassName="h-[360px] sm:h-[440px] xl:h-auto xl:min-h-[18rem] xl:flex-1"
+            className="md:max-xl:col-span-2 xl:flex xl:flex-1 xl:flex-col"
+          />
+        </div>
       </div>
     </div>
   );

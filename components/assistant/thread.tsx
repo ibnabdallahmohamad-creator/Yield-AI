@@ -4,6 +4,7 @@ import { ArrowRight, Check, Copy, MessageSquareOff, Plus, RefreshCw, RotateCcw, 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { HealthDot } from "@/components/dashboard/risk-badge";
+import { dotTone } from "@/components/assistant/types";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -293,7 +294,7 @@ export function EmptyState({ farm, onAsk, disabled }: { farm: AssistantFarm | nu
         Ask about <span className="text-primary">{farm.name}</span>
       </h2>
       <p className="mt-3 flex items-start gap-2 text-base text-muted-foreground">
-        <HealthDot tone={farm.reasonTone} className="mt-2" />
+        <HealthDot tone={dotTone(farm)} className="mt-2" />
         <span>
           <span className="font-medium text-foreground">{farm.reason}.</span> {farm.headline}
         </span>

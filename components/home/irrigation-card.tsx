@@ -18,7 +18,7 @@ export function IrrigationCard({ rows, className }: { rows: FarmRow[]; className
       {schedule.length > 0 ? (
         <ol className="mt-2 divide-y">
           {schedule.map((g) => (
-            <li key={g.when} className="flex gap-4 py-3">
+            <li key={g.when} className="flex gap-4 py-1.5 sm:py-3">
               <span
                 className={cn(
                   "w-20 shrink-0 text-sm font-semibold max-sm:leading-11",

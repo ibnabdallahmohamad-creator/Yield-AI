@@ -189,7 +189,7 @@ export async function adviseLandUse(req: LandRequest, data: DashboardData, optio
     adjusted = applyAdjustments(ranked, live.adjustments);
   } else {
     const reason = !researchAvailable()
-      ? "From Harvestar AI's built-in Qatar market and news notes (live search isn't switched on for this server)."
+      ? "From Harvestar AI's built-in Qatar market and news notes."
       : "Run the analysis to search current Qatar news and markets; this first view uses the built-in Qatar reference data.";
     researchOut = referenceResearch(month, scarce, glut, reason);
   }
