@@ -1,5 +1,5 @@
 ---
-pretty_name: Yield AI — Qatar farm advisor (Q1 land / Q2 farm)
+pretty_name: Harvestar AI — Qatar farm advisor (Q1 land / Q2 farm)
 license: cc-by-4.0
 language:
   - en
@@ -18,17 +18,17 @@ configs:
   - config_name: default
     data_files:
       - split: train
-        path: yield-ai-qatar.jsonl
+        path: harvestar-ai-qatar.jsonl
 ---
 
-# Yield AI — Qatar farm advisor
+# Harvestar AI — Qatar farm advisor
 
 3,000 chat conversations for fine-tuning a small model (Unsloth / TRL SFT) into a farm advisor for
-Qatar. There is one file, `yield-ai-qatar.jsonl`, with one conversation per line:
+Qatar. There is one file, `harvestar-ai-qatar.jsonl`, with one conversation per line:
 
 ```json
 {"messages": [
-  {"role": "system", "content": "You are Yield AI, an agronomy and farm-economics advisor for Qatar. ..."},
+  {"role": "system", "content": "You are Harvestar AI, an agronomy and farm-economics advisor for Qatar. ..."},
   {"role": "user", "content": "Q1: What is the best use for this land?\n\n{\"task\":\"land_analysis\",\"as_of\":\"...\",\"inputs\":{...},\"context\":{...},\"derived\":{...},\"evidence\":[...]}"},
   {"role": "assistant", "content": "{\"task\":\"land_analysis\",\"summary\":\"...\",\"insights\":[...], ...}"}
 ]}
@@ -59,7 +59,7 @@ Conversations are 6,702 Qwen3 tokens on average and at most 8,894, so use `max_s
 
 ```python
 from datasets import load_dataset
-ds = load_dataset("json", data_files="yield-ai-qatar.jsonl", split="train")  # or load_dataset("<user>/<repo>", split="train")
+ds = load_dataset("json", data_files="harvestar-ai-qatar.jsonl", split="train")  # or load_dataset("<user>/<repo>", split="train")
 ```
 
 Sources and credits: FAO AQUAMAPS and FAOSTAT (CC-BY-4.0); AgERA5, which contains modified Copernicus Climate

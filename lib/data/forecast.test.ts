@@ -88,7 +88,7 @@ describe("getNext12hForecasts", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "yai-forecast-"));
-    vi.stubEnv("YIELD_DATA_DIR", dir);
+    vi.stubEnv("HARVESTAR_DATA_DIR", dir);
     vi.stubEnv("OPEN_METEO_DISABLED", "false");
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -154,7 +154,7 @@ describe("getNext12hForecasts", () => {
   it("survives a restart in the same half-day without downloading again", async () => {
     fetchMock.mockResolvedValue(answer(at("2026-09-25T08:00:00Z")));
     await getNext12hForecasts(farms, at("2026-09-25T09:05:00Z"));
-    resetForecastCache(); // a new process: only the file in YIELD_DATA_DIR remains
+    resetForecastCache(); // a new process: only the file in HARVESTAR_DATA_DIR remains
     const again = await getNext12hForecasts(farms, at("2026-09-25T10:00:00Z"));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(again["farm-a"].hours).toHaveLength(12);

@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { AnswerView } from "./answer-view";
 
 export const SOURCE_LABEL: Record<ChatAnswerSource, string> = {
-  "ai-service": "Yield AI model",
+  "ai-service": "Harvestar AI model",
   llm: "Claude · LLM fallback",
   offline: "Built-in agronomy engine",
 };

@@ -62,6 +62,8 @@ export function WeatherTimeline({
         prev = day;
       }
     });
+    // The first day is often a few evening hours: no label rather than a clipped "F…".
+    if (out.length > 1 && out[1].i < times.length * 0.12) out.shift();
     return out;
   }, [times]);
 
@@ -108,7 +110,7 @@ export function WeatherTimeline({
           {days.map((d, k) => (
             <span
               key={d.i}
-              className={cn("absolute truncate pl-1", k === 0 ? "" : "border-l border-foreground/25")}
+              className={cn("absolute truncate pl-1", d.i === 0 ? "" : "border-l border-foreground/25")}
               style={{ left: `${pos(d.i)}%`, maxWidth: `${pos((days[k + 1]?.i ?? n - 1) - d.i)}%` }}
             >
               {d.label}

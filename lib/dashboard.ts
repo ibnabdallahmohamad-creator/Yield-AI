@@ -7,7 +7,7 @@ import { CROPS, SOILS, type MarketStatus } from "./agronomy-tables";
 import { lastDataIndex, rankCrops, trend, VEGETABLE_CROPS, type CropOption } from "./ai/analysis";
 import type { AiInsight, Priority, Recommendation } from "./ai/contract";
 import { addDays } from "./data/time";
-import { formatWeekday, plural } from "./format";
+import { formatShortDay, formatWeekday, plural } from "./format";
 import type { MetricDef } from "./metrics";
 import type { Farm, FarmBundle, FarmDay } from "./types";
 
@@ -165,11 +165,23 @@ export interface RiskReason {
 /** Farm-mean yield loss (%) from which salinity counts as costing yield (matches the insight rules). */
 const MEANINGFUL_LOSS_PCT = 2;
 
+/** Days without a reading after which a farm shows as quiet rather than by its old numbers. */
+export const QUIET_DAYS = 2;
+
+/** Days from the farm's last reading to `index`: 0 when it reported that day, null with no readings. */
+export function daysSinceReading(bundle: FarmBundle, index = bundle.days.length - 1): number | null {
+  const at = Math.min(index, bundle.days.length - 1);
+  const i = lastDataIndex(bundle, at);
+  return i >= 0 ? at - i : null;
+}
+
 /** Why a farm is (or isn't) at risk, in words — shown instead of a bare layer value (ui_improvement D4). */
 export function riskReason(bundle: FarmBundle, index = bundle.days.length - 1): RiskReason {
   const i = lastDataIndex(bundle, index);
   const d = i >= 0 ? bundle.days[i] : null;
   if (!d) return { label: "No readings", tone: "none", driver: "none" };
+  const quiet = Math.min(index, bundle.days.length - 1) - i;
+  if (quiet >= QUIET_DAYS) return { label: `No readings for ${quiet} days`, tone: "warn", driver: "none" };
   const threshold = CROPS[bundle.farm.main_crop].salinity.threshold_dS_per_m;
   if ((d.deficitPct ?? 0) > 100) return { label: "Drying out", tone: "bad", driver: "water" };
   const loss = d.yieldLoss ?? 0;
@@ -187,6 +199,8 @@ export function plainHeadline(bundle: FarmBundle, index = bundle.days.length - 1
   const i = lastDataIndex(bundle, index);
   const d = i >= 0 ? bundle.days[i] : null;
   if (!d) return "No probe readings yet.";
+  const quiet = Math.min(index, bundle.days.length - 1) - i;
+  if (quiet >= QUIET_DAYS) return `The probes have sent nothing for ${quiet} days, so these numbers are from ${formatShortDay(d.date)}. Check their power and Wi-Fi.`;
   const crop = CROPS[bundle.farm.main_crop].name.toLowerCase();
   const reason = riskReason(bundle, index);
   const loss = Math.round(d.yieldLoss ?? 0);

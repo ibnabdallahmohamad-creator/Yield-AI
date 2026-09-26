@@ -18,6 +18,18 @@ test.describe("accounts", () => {
     await expect(page.getByRole("combobox", { name: "Map layer" })).toContainText("Soil moisture");
   });
 
+  test("email confirmation links end on the sign-in form", async ({ page }) => {
+    await page.goto("/auth/confirm?next=%2Fdashboard%2Fdevices");
+    await expect(page).toHaveURL(/\/login\?notice=confirmed&next=%2Fdashboard%2Fdevices/);
+    await expect(page.getByText(/email is confirmed/i)).toBeVisible();
+    // A reused link: Supabase reports it in the fragment, which survives the redirect.
+    await page.goto("/auth/confirm#error=access_denied&error_code=otp_expired");
+    await expect(page.getByText(/expired or was already used/i)).toBeVisible();
+    // Links that fall back to the Site URL are forwarded too.
+    await page.goto("/?code=stale-code");
+    await expect(page).toHaveURL(/\/login\?notice=confirmed/);
+  });
+
   test("signing out returns to the home page and locks the dashboard", async ({ page }) => {
     await signIn(page);
     await page.getByRole("button", { name: /^Account:/ }).click();

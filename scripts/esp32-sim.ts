@@ -1,5 +1,5 @@
 /**
- * A pretend ESP32 probe, speaking exactly the protocol of firmware/esp32/yield-ai-probe:
+ * A pretend ESP32 probe, speaking exactly the protocol of firmware/esp32/harvestar-probe:
  *
  *   1. Pair: POST /api/device/pair { code } → { token, interval_s, ... }   (skipped with --token)
  *   2. Every interval_s: POST /api/readings with `Authorization: Bearer <token>` and one reading;
@@ -34,7 +34,7 @@ function parseArgs(argv: string[]): Args {
     return Number(m[1]) * { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as "s" | "m" | "h" | "d"];
   };
   return {
-    url: (get("url") ?? process.env.YIELD_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
+    url: (get("url") ?? process.env.HARVESTAR_URL ?? process.env.YIELD_URL ?? "http://localhost:3000").replace(/\/+$/, ""),
     code: get("code"),
     token: get("token") ?? process.env.DEVICE_TOKEN ?? null,
     count: Number(get("count") ?? Infinity),

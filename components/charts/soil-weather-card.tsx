@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AllPanel } from "@/components/charts/all-panel";
 import { CHART_TABS, tabAlert, type ChartTab } from "@/lib/charts";
 import { hasPreviousPeriod, type ChartOverlay } from "@/lib/dashboard";
 import { assistantHref } from "@/lib/routes";
@@ -83,6 +84,15 @@ export function SoilWeatherCard({
   const [compare, setCompare] = useState<string>("none");
   const [showProbes, setShowProbes] = useState(false);
   const [showSoil, setShowSoil] = useState(false);
+  // "All" (full-size card only) is held against the tab it was opened from, so a tab change from
+  // outside (a map layer, an action's "See the chart") leaves it without an effect.
+  const [allFrom, setAllFrom] = useState<ChartTab | null>(null);
+  const [prevTab, setPrevTab] = useState(tab);
+  if (tab !== prevTab) {
+    setPrevTab(tab);
+    setAllFrom(null);
+  }
+  const showAll = !compact && allFrom === tab;
 
   const end = Math.min(index, dates.length - 1);
   const start = Math.max(0, end - range + 1);
@@ -97,8 +107,9 @@ export function SoilWeatherCard({
   }, [compare, canPrevious, others]);
   const overlayLabel = overlay.kind === "previous" ? `Previous ${range} days` : overlay.kind === "farm" ? overlay.bundle.farm.name : null;
 
-  const soilTab = tab === "salinity" || tab === "moisture";
-  const hasOptions = soilTab || tab === "temperature" || (compact && expandHref);
+  const soilTab = !showAll && (tab === "salinity" || tab === "moisture");
+  const tempTab = !showAll && tab === "temperature";
+  const hasOptions = soilTab || tempTab || (compact && expandHref);
 
   const panel: PanelProps = {
     bundle,
@@ -112,10 +123,10 @@ export function SoilWeatherCard({
     overlay: soilTab ? overlay : { kind: "none" },
     overlayLabel: soilTab ? overlayLabel : null,
     showProbes: soilTab && showProbes,
-    showSoil: tab === "temperature" && showSoil,
+    showSoil: tempTab && showSoil,
     askHref: (q) => askAiHref(bundle.farm.id, q),
   };
-  const Panel = PANELS[tab];
+  const Panel = showAll ? AllPanel : PANELS[tab];
 
   return (
     <section aria-labelledby="soil-weather-title" className={cn("rounded-2xl border bg-card p-4 shadow-xs sm:p-5", className)}>
@@ -164,14 +175,14 @@ export function SoilWeatherCard({
                 </DropdownMenuCheckboxItem>
               </>
             ) : null}
-            {tab === "temperature" ? (
+            {tempTab ? (
               <DropdownMenuCheckboxItem checked={showSoil} onCheckedChange={(v) => setShowSoil(v === true)} className="min-h-9">
                 Show soil temperature
               </DropdownMenuCheckboxItem>
             ) : null}
             {compact && expandHref ? (
               <>
-                {soilTab || tab === "temperature" ? <DropdownMenuSeparator /> : null}
+                {soilTab || tempTab ? <DropdownMenuSeparator /> : null}
                 <DropdownMenuItem asChild className="min-h-9">
                   <Link href={expandHref}>
                     <Maximize2 /> Open full-size charts
@@ -183,7 +194,15 @@ export function SoilWeatherCard({
         </DropdownMenu>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => onTabChange(v as ChartTab)} className="mt-2 gap-4">
+      <Tabs
+        value={showAll ? "all" : tab}
+        onValueChange={(v) => {
+          if (v === "all") return setAllFrom(tab);
+          setAllFrom(null);
+          onTabChange(v as ChartTab);
+        }}
+        className="mt-2 gap-4"
+      >
         <TabsList aria-label="Soil and weather charts" className="-mx-1 px-1">
           {CHART_TABS.map((t) => {
             const tone = tabAlert(bundle, t.key, end);
@@ -201,8 +220,13 @@ export function SoilWeatherCard({
               </TabsTrigger>
             );
           })}
+          {!compact ? (
+            <TabsTrigger value="all" className="px-2 sm:px-3">
+              All
+            </TabsTrigger>
+          ) : null}
         </TabsList>
-        <TabsContent value={tab}>
+        <TabsContent value={showAll ? "all" : tab}>
           <Panel {...panel} />
         </TabsContent>
       </Tabs>

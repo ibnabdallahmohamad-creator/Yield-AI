@@ -1,5 +1,5 @@
 /**
- * Yield AI agronomy engine.
+ * Harvestar AI agronomy engine.
  *
  * Pure, typed functions. Units are part of every name (e.g. `_kPa`, `_mm_per_day`)
  * and every formula cites its source equation. Coefficient tables (Kc, p, Zr,

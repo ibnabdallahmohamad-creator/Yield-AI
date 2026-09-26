@@ -102,7 +102,7 @@ function AnswerLabel({ tone = "primary" }: { tone?: "primary" | "warn" }) {
   return (
     <div className="mb-1.5 flex items-center gap-2">
       <AssistantMark tone={tone} className="size-6" />
-      <span className="text-sm font-semibold text-foreground">Yield AI</span>
+      <span className="text-sm font-semibold text-foreground">Harvestar AI</span>
     </div>
   );
 }
@@ -286,9 +286,10 @@ export function EmptyState({ farm, onAsk, disabled }: { farm: AssistantFarm | nu
     );
   }
   return (
-    <div className="flex flex-1 flex-col justify-center py-10 sm:py-16">
-      <AssistantMark className="size-10" />
-      <h2 className="mt-5 font-display text-[28px] leading-tight text-foreground">
+    // Phones: top-aligned and without the mark, so every suggestion clears the composer.
+    <div className="flex flex-1 flex-col py-6 sm:justify-center sm:py-16">
+      <AssistantMark className="size-10 max-sm:hidden" />
+      <h2 className="font-display text-[28px] leading-tight text-foreground sm:mt-5">
         Ask about <span className="text-primary">{farm.name}</span>
       </h2>
       <p className="mt-3 flex items-start gap-2 text-base text-muted-foreground">
@@ -298,14 +299,14 @@ export function EmptyState({ farm, onAsk, disabled }: { farm: AssistantFarm | nu
         </span>
       </p>
       {farm.hasReadings ? (
-        <ul className="mt-8 grid gap-3 sm:grid-cols-2" aria-label="Suggested questions">
+        <ul className="mt-6 grid gap-2 sm:mt-8 sm:grid-cols-2 sm:gap-3" aria-label="Suggested questions">
           {farm.prompts.map((p) => (
             <li key={p}>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onAsk(p)}
-                className="group flex h-full w-full items-center justify-between gap-3 rounded-2xl sm:min-h-16 sm:items-start border bg-card p-4 text-left text-sm text-foreground shadow-xs transition-[border-color,background-color,transform] duration-150 hover:border-primary/40 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:translate-y-px disabled:opacity-50 motion-reduce:transition-none"
+                className="group flex h-full w-full items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 text-left sm:min-h-16 sm:items-start sm:p-4 text-sm text-foreground shadow-xs transition-[border-color,background-color,transform] duration-150 hover:border-primary/40 hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:translate-y-px disabled:opacity-50 motion-reduce:transition-none"
               >
                 <span>{p}</span>
                 <ArrowRight

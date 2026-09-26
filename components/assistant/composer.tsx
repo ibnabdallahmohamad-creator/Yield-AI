@@ -103,7 +103,7 @@ export function Composer({
       <div className="mt-2 flex items-center justify-center gap-1.5 px-2 text-center text-xs text-muted-foreground">
         <span className="min-w-0 truncate">{note}</span>
         <InfoTip label="Where do answers come from?">
-          Answers use this farm&apos;s soil probe readings, weather and saved advice. They come from the Yield AI model; if it can&apos;t be
+          Answers use this farm&apos;s soil probe readings, weather and saved advice. They come from the Harvestar AI model; if it can&apos;t be
           reached, from Claude; and without either, from the built-in agronomy engine (FAO-56 and FAO-29 rules). Each answer says
           which one wrote it. Check anything important with your agronomist.
         </InfoTip>

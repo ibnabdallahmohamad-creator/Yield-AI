@@ -21,16 +21,20 @@ export function IrrigationCard({ rows, className }: { rows: FarmRow[]; className
             <li key={g.when} className="flex gap-4 py-3">
               <span
                 className={cn(
-                  "w-20 shrink-0 text-sm font-semibold",
+                  "w-20 shrink-0 text-sm font-semibold max-sm:leading-11",
                   g.status === "now" ? "text-risk-high-ink" : g.status === "soon" ? "text-risk-medium-ink" : "text-foreground",
                 )}
               >
                 {g.when}
               </span>
-              <ul className="min-w-0 flex-1 space-y-1.5">
+              {/* Phones: each row is a 44px tap target (the link stretches over it). */}
+              <ul className="min-w-0 flex-1 sm:space-y-1.5">
                 {g.rows.map((r) => (
-                  <li key={r.id} className="flex items-baseline justify-between gap-3 text-sm">
-                    <Link href={farmTabHref(r.id)} className="truncate rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">
+                  <li key={r.id} className="relative flex items-center justify-between gap-3 text-sm max-sm:min-h-11">
+                    <Link
+                      href={farmTabHref(r.id)}
+                      className="truncate rounded-sm after:absolute after:inset-0 hover:underline focus-visible:outline-none focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring/60"
+                    >
                       {r.name}
                     </Link>
                     <span className="shrink-0 tabular text-muted-foreground">{r.irrigation.grossMm} mm</span>

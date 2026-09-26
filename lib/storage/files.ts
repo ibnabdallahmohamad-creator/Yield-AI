@@ -7,9 +7,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-/** `$YIELD_DATA_DIR`, or `.data` in the project. */
+/** `$HARVESTAR_DATA_DIR`, or `.data` in the project. */
 export function dataRoot(): string {
-  return process.env.YIELD_DATA_DIR?.trim() || path.join(process.cwd(), ".data");
+  return (process.env.HARVESTAR_DATA_DIR ?? process.env.YIELD_DATA_DIR)?.trim() || path.join(process.cwd(), ".data");
 }
 
 export const errorCode = (error: unknown) => (error as NodeJS.ErrnoException | null)?.code;

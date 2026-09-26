@@ -1,4 +1,4 @@
-// UI audit: screenshots + clutter metrics for every Yield AI page.
+// UI audit: screenshots + clutter metrics for every Harvestar AI page.
 // Usage (dev server running, demo data): node docs/ui-audit/audit.cjs  → docs/ui-audit/after/
 // docs/ui-audit/shots/ keeps the "before" audit that ui_improvement.md links to (AUDIT_OUT=shots to overwrite it).
 // BASE_URL=http://localhost:3001 node docs/ui-audit/audit.cjs   to target another port.
@@ -117,7 +117,7 @@ const FARM = "/dashboard/farm/khor-north";
 
   await visit(page, "d", "assistant", "/dashboard/assistant?farm=khor-north", "desktop");
   await page.getByRole("list", { name: "Suggested questions" }).getByRole("button").first().click();
-  await page.getByText(/Yield AI model|Claude · LLM fallback|Built-in agronomy engine/).waitFor({ timeout: 60000 }).catch(() => {});
+  await page.getByText(/Harvestar AI model|Claude · LLM fallback|Built-in agronomy engine/).waitFor({ timeout: 60000 }).catch(() => {});
   await page.waitForTimeout(1500);
   await shot(page, "d-assistant-answer"); await metrics(page, "desktop assistant answer");
   await ctx.close();

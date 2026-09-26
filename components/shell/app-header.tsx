@@ -21,7 +21,7 @@ const TITLE: Record<Section, string> = {
   land: "Land use",
   devices: "Farms & devices",
   assistant: "Assistant",
-  other: "Yield AI",
+  other: "Harvestar AI",
 };
 
 /** "Farms › Al Khor North Farm ▾": the ▾ switches farm without leaving the tab you're on. */
@@ -70,7 +70,7 @@ export function AppHeader({ user }: { user: { name: string; email: string } }) {
     <header data-chrome className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur-md sm:px-4 lg:px-6">
       <Link
         href="/dashboard"
-        aria-label="Yield AI home"
+        aria-label="Harvestar AI home"
         className="-ml-1.5 flex size-11 shrink-0 items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none lg:hidden"
       >
         <LogoMark className="size-8" />

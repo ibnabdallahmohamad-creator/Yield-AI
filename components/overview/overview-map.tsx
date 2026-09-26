@@ -38,7 +38,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { farmValueAt, probeSamples } from "@/lib/dashboard";
+import { CROPS } from "@/lib/agronomy-tables";
+import { farmValueAt, probeSamples, triggerMoisturePct } from "@/lib/dashboard";
 import { formatShortDay } from "@/lib/format";
 import { computeDelta, METRICS, type MetricKey } from "@/lib/metrics";
 import type { FarmBundle } from "@/lib/types";
@@ -51,7 +52,8 @@ import { WEATHER_LAYER_ICON } from "@/components/weather/layer-icons";
 import { WeatherLegend } from "@/components/weather/weather-legend";
 import { WeatherStage } from "@/components/weather/weather-stage";
 
-const SINGLE_PADDING: MapPadding = { top: 72, right: 64, bottom: 72, left: 48 };
+// Bottom clears the legend chip (bottom-left, ~95 px tall) so no farm sits under it.
+const SINGLE_PADDING: MapPadding = { top: 72, right: 64, bottom: 132, left: 48 };
 const COMPARE_PADDING: MapPadding = { top: 96, right: 48, bottom: 48, left: 40 };
 
 const LAYER_GROUPS: { label: string; items: { value: MetricKey; label: string; icon: React.ReactNode }[] }[] = [
@@ -89,6 +91,20 @@ const LIVE_TEXT = {
   retrying: "Reconnecting…",
   "signed-out": "Signed out",
 } as const;
+
+/** The line a field's isoline marks: the crop's salinity limit, or that day's irrigation trigger. */
+function fieldLimit(b: FarmBundle, key: MetricKey, index: number): { value: number; label: string } | null {
+  if (key === "ece") {
+    const crop = CROPS[b.farm.main_crop];
+    return { value: crop.salinity.threshold_dS_per_m, label: `${crop.name} limit` };
+  }
+  if (key === "moisture") {
+    const day = b.days[index];
+    const trigger = day ? triggerMoisturePct(b.farm, day) : null;
+    return trigger != null ? { value: trigger, label: "Irrigate below" } : null;
+  }
+  return null;
+}
 
 /** "Then · 25 Aug" / "Now · 24 Sep" on the compare maps. */
 function MapChip({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -238,6 +254,7 @@ export function OverviewMap({
           value,
           samples: probeSamples(b, metric, dateIndex),
           delta: compare ? computeDelta(metric, farmValueAt(b, metric, thenIndex), value) : null,
+          limit: fieldLimit(b, metric.key, dateIndex),
         };
       }),
     [farms, metric, dateIndex, thenIndex, compare],
@@ -251,6 +268,7 @@ export function OverviewMap({
             polygon: b.farm.polygon,
             value: farmValueAt(b, metric, thenIndex),
             samples: probeSamples(b, metric, thenIndex),
+            limit: fieldLimit(b, metric.key, thenIndex),
           }))
         : [],
     [farms, metric, thenIndex, compare],
@@ -266,6 +284,18 @@ export function OverviewMap({
   const viewingPast = dateIndex < last && !compare;
   const selectedValue = bundle ? farmValueAt(bundle, metric, dateIndex) : null;
   const legendMarker = farm ? { value: selectedValue, label: farm.name } : null;
+  // The key to the red field lines (drawn in field view only): the selected farm's limit, the one
+  // limit every field shares, or a general note when the fields' crops differ.
+  const fieldLimits = mapFarms.flatMap((f) => (f.limit ? [f.limit] : []));
+  const legendLimit = !fieldView
+    ? null
+    : farm
+      ? (mapFarms.find((f) => f.id === farm.id)?.limit ?? null)
+      : fieldLimits.length === 0
+        ? null
+        : fieldLimits.every((l) => l.value === fieldLimits[0].value && l.label === fieldLimits[0].label)
+          ? fieldLimits[0]
+          : { value: null, label: metric.key === "ece" ? "Each farm's crop limit" : "Each farm's irrigation trigger" };
 
   const historyButton = (
     <Button
@@ -526,7 +556,7 @@ export function OverviewMap({
         ) : null}
 
         {!historyOpen && !compare && !weatherLayer ? (
-          <MapLegend metric={metric} marker={legendMarker} variant="chip" className="absolute bottom-8 left-2.5 z-[1000] hidden sm:block" />
+          <MapLegend metric={metric} marker={legendMarker} limit={legendLimit} variant="chip" className="absolute bottom-8 left-2.5 z-[1000] hidden sm:block" />
         ) : null}
 
         {overlay && !historyOpen && !compare && !(weatherLayer && wxPin) ? <div className="absolute top-16 left-2.5 z-[1000] w-[min(20rem,calc(100%-1.25rem))]">{overlay}</div> : null}
@@ -541,6 +571,7 @@ export function OverviewMap({
         <MapLegend
           metric={metric}
           marker={legendMarker}
+          limit={legendLimit}
           variant="strip"
           info={false}
           action={phone && !historyOpen ? historyButton : null}

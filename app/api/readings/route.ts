@@ -108,7 +108,7 @@ async function deviceIngest(request: Request, token: string) {
     return NextResponse.json({ error: "Invalid reading(s).", details: rejected, interval_s: device.interval_s }, { status: 422 });
   }
   try {
-    const stored = await registry.recordReadings(device, readings, payload.meta);
+    const stored = await registry.recordReadings(device, readings, payload.meta, token);
     return NextResponse.json(
       {
         ok: true,

@@ -15,9 +15,11 @@ import { RiskSparkline } from "@/components/insights/risk-sparkline";
 import { OverviewMap } from "@/components/overview/overview-map";
 import { useShell } from "@/components/shell/shell-context";
 import { Button } from "@/components/ui/button";
+import { useDoneActions } from "@/hooks/use-done-actions";
 import { useLiveDashboard } from "@/hooks/use-live-dashboard";
 import { lastDataIndex } from "@/lib/ai/analysis";
 import { PRIORITY_TONE, rankFarms, weeklyActions, type HealthTone } from "@/lib/dashboard";
+import { actionAnchor, actionKey } from "@/lib/done-actions";
 import { fmtNum, formatLongDay } from "@/lib/format";
 import type { MetricKey } from "@/lib/metrics";
 import { farmRow, portfolioHeadline, portfolioSummary, type FarmRow } from "@/lib/portfolio";
@@ -176,7 +178,10 @@ export function Home({
   const ranked = useMemo(() => rankFarms(data.farms), [data.farms]);
   const rows = useMemo(() => ranked.map((b) => farmRow(b, dates)), [ranked, dates]);
   const summary = portfolioSummary(rows);
-  const doFirst = useMemo(() => weeklyActions(ranked).filter((a) => a.rec.priority === "high"), [ranked]);
+  const urgent = useMemo(() => weeklyActions(ranked).filter((a) => a.rec.priority === "high"), [ranked]);
+  // Actions ticked off on the Plan or a farm's Advice tab drop out here too.
+  const { done } = useDoneActions();
+  const doFirst = urgent.filter((a) => !done.has(actionKey(a.farm.id, a.rec.title)));
 
   // The latest day any farm has readings for; today when none has any yet (a new account).
   const latestWithData = useMemo(() => {
@@ -264,7 +269,7 @@ export function Home({
                 <li key={`${farm.id}-${rec.title}`} className="relative flex gap-3 py-3">
                   <HealthDot tone={PRIORITY_TONE[rec.priority]} className="mt-1.5 ring-0" />
                   <div className="min-w-0">
-                    <Link href={farmTabHref(farm.id, "advice")} className={cn(ROW_LINK, "text-sm leading-snug text-pretty")}>
+                    <Link href={`${farmTabHref(farm.id, "advice")}#${actionAnchor(rec.title)}`} className={cn(ROW_LINK, "text-sm leading-snug text-pretty")}>
                       {rec.title}
                     </Link>
                     <p className="text-xs text-muted-foreground">{farm.name}</p>
@@ -272,6 +277,8 @@ export function Home({
                 </li>
               ))}
             </ol>
+          ) : urgent.length > 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">All {urgent.length} urgent actions are done. The plan has the rest of the week.</p>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">Nothing urgent. Every farm is in range; keep the current schedules.</p>
           )}

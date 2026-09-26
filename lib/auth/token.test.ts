@@ -2,7 +2,7 @@ import { SignJWT } from "jose";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEV_AUTH_SECRET, signSessionToken, verifySessionToken } from "./token";
 
-const user = { sub: "user-1", email: "demo@yield-ai.app", name: "Demo Agronomist" };
+const user = { sub: "user-1", email: "demo@harvestar.ai", name: "Demo Agronomist" };
 
 /** A token anyone could make: signed with the dev secret that is public in the repository. */
 const forged = () =>

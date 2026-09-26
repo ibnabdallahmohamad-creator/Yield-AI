@@ -1,8 +1,8 @@
 /*
- * Yield AI probe — ESP32 firmware (Arduino core 2.x or 3.x, no extra libraries).
+ * Harvestar AI probe — ESP32 firmware (Arduino core 2.x or 3.x, no extra libraries).
  *
  * First start (or after holding BOOT for 5 s):
- *   The ESP32 opens a Wi-Fi network "YieldAI-Setup-XXXX". Join it from a phone; the setup page opens
+ *   The ESP32 opens a Wi-Fi network "Harvestar-Setup-XXXX". Join it from a phone; the setup page opens
  *   (or browse to http://192.168.4.1). Pick the farm's Wi-Fi, enter its password, the dashboard's
  *   address (e.g. https://your-site.vercel.app, or http://192.168.1.20:3000 for a laptop on the same
  *   Wi-Fi) and the pairing code from Farms & devices → Connect ESP32. Save.
@@ -405,12 +405,12 @@ void handleRoot() {
     if (s.length() == 0 || options.indexOf(">" + htmlEscape(s) + "<") >= 0) continue;
     options += "<option value=\"" + htmlEscape(s) + "\"" + (s == cfg.ssid ? " selected" : "") + ">" + htmlEscape(s) + "</option>";
   }
-  String page = F("<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><title>Yield AI probe</title>"
+  String page = F("<!doctype html><html><head><meta name=viewport content='width=device-width,initial-scale=1'><title>Harvestar AI probe</title>"
                   "<style>body{font-family:system-ui,sans-serif;max-width:28rem;margin:1.5rem auto;padding:0 1rem;color:#1f2a1f}"
                   "label{display:block;margin-top:1rem;font-weight:600}input,select{width:100%;padding:.6rem;font-size:1rem;margin-top:.3rem;box-sizing:border-box}"
                   "button{margin-top:1.5rem;width:100%;padding:.8rem;font-size:1rem;background:#1f5f3f;color:#fff;border:0;border-radius:.5rem}"
                   ".note{background:#fdecc8;padding:.6rem;border-radius:.4rem}.muted{color:#666;font-size:.9rem}</style></head><body>"
-                  "<h1>Yield AI probe</h1>");
+                  "<h1>Harvestar AI probe</h1>");
   if (setupMessage.length()) page += "<p class=note>" + htmlEscape(setupMessage) + "</p>";
   page += "<form method=post action=/save>";
   page += "<label>Wi-Fi network<select name=ssid_pick onchange=\"document.getElementById('ssid').value=this.value\"><option value=''>Choose…</option>" + options + "</select></label>";
@@ -450,7 +450,7 @@ void startSetupMode(const String& message) {
   setupStartedAt = millis();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_AP_STA);
-  String ap = "YieldAI-Setup-" + deviceSuffix();
+  String ap = "Harvestar-Setup-" + deviceSuffix();
   WiFi.softAP(ap.c_str());
   dns.start(53, "*", WiFi.softAPIP());
   web.on("/", HTTP_GET, handleRoot);
@@ -514,7 +514,7 @@ void setup() {
   rs485.begin(RS485_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
 #endif
   loadSettings();
-  Serial.printf("\nYield AI probe %s, device %s\n", FIRMWARE_VERSION, deviceSuffix().c_str());
+  Serial.printf("\nHarvestar AI probe %s, device %s\n", FIRMWARE_VERSION, deviceSuffix().c_str());
 
   if (cfg.ssid.length() == 0 || cfg.server.length() == 0 || (cfg.token.length() == 0 && cfg.code.length() == 0)) {
     startSetupMode("");

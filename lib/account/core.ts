@@ -74,16 +74,22 @@ export interface AccountStore {
   readingsBetween(farmId: string, fromMs: number, toMs: number): Promise<SensorReading[]>;
   /** A farm's readings bucketed for charts. */
   bucketSeries(farmId: string, fromMs: number, toMs: number, bucketMs: number): Promise<BucketMap>;
+  /**
+   * Store readings for the account's own farms (not through a device token), e.g. the test
+   * account's probes. `seen` marks those devices as just heard from.
+   */
+  insertReadings(readings: SensorReading[], seen?: Array<{ id: string; count: number }>): Promise<number>;
   /** Time of a farm's first stored reading (the "All" range starts there). */
   firstReadingAt(farmId: string): Promise<number | null>;
 }
 
 export interface DeviceRegistry {
-  findByToken(tokenHash: string): Promise<StoredDevice | null>;
+  /** `token` is the raw device token (for stores that hash it themselves, e.g. the Supabase functions). */
+  findByToken(tokenHash: string, token: string): Promise<StoredDevice | null>;
   /** Claim a pairing code: sets the new token and `paired_at`, clears the code. Null when unknown or expired. */
-  claimPairingCode(code: string, token: { hash: string; hint: string }, meta: DeviceMeta): Promise<StoredDevice | null>;
+  claimPairingCode(code: string, token: { hash: string; hint: string; token: string }, meta: DeviceMeta): Promise<StoredDevice | null>;
   /** Store a device's readings and mark it seen. Returns how many were stored. */
-  recordReadings(device: StoredDevice, readings: SensorReading[], meta: DeviceMeta): Promise<number>;
+  recordReadings(device: StoredDevice, readings: SensorReading[], meta: DeviceMeta, token?: string): Promise<number>;
 }
 
 export interface DeviceMeta {

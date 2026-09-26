@@ -5,7 +5,7 @@
 import { CROPS } from "./agronomy-tables";
 import { lastDataIndex } from "./ai/analysis";
 import type { RiskLevel } from "./ai/contract";
-import { irrigationPlan, riskReason, sortedActions, type IrrigationPlan, type RiskReason } from "./dashboard";
+import { irrigationPlan, QUIET_DAYS, riskReason, sortedActions, type IrrigationPlan, type RiskReason } from "./dashboard";
 import type { FarmBundle, RiskPoint } from "./types";
 
 export interface FarmRow {
@@ -23,6 +23,8 @@ export interface FarmRow {
   irrigation: IrrigationPlan;
   history: RiskPoint[];
   doFirst: number;
+  /** Days since the last reading: 0 when the farm reported today, null before its first reading. */
+  staleDays: number | null;
 }
 
 /** One farm as a portfolio row, on its latest day with readings. */
@@ -31,6 +33,10 @@ export function farmRow(bundle: FarmBundle, dates: string[]): FarmRow {
   const day = i >= 0 ? (bundle.days[i] ?? null) : null;
   const crop = CROPS[bundle.farm.main_crop];
   const actions = sortedActions(bundle.insight);
+  const last = dates.length - 1;
+  const stale = i >= 0 ? Math.max(0, last - i) : null;
+  // Plan from today: yesterday's schedule moves up a day; a quiet farm has no plan to trust.
+  const planDay = day && stale && day.daysToIrrigation != null ? { ...day, daysToIrrigation: day.daysToIrrigation - stale } : day;
   return {
     id: bundle.farm.id,
     name: bundle.farm.name,
@@ -42,9 +48,10 @@ export function farmRow(bundle: FarmBundle, dates: string[]): FarmRow {
     overLimit: day?.ece != null && day.ece > crop.salinity.threshold_dS_per_m,
     moisture: day?.moisture ?? null,
     yieldLoss: day?.yieldLoss ?? null,
-    irrigation: irrigationPlan(day, dates, i >= 0 ? i : dates.length - 1),
+    irrigation: stale != null && stale >= QUIET_DAYS ? irrigationPlan(null, dates, last) : irrigationPlan(planDay, dates, last),
     history: bundle.riskHistory,
     doFirst: actions.filter((a) => a.priority === "high").length,
+    staleDays: stale,
   };
 }
 
@@ -103,20 +110,29 @@ function reasonClause(label: string, names: string[]): string {
  */
 export function portfolioHeadline(rows: FarmRow[]): string {
   if (rows.length === 0) return "No farms yet.";
-  const high = rows.filter((r) => r.riskLevel === "high");
+  // Farms whose probes went quiet are named apart: their old numbers say little about today.
+  const quiet = rows.filter((r) => (r.staleDays ?? 0) >= QUIET_DAYS);
+  const quietDays = quiet.map((r) => r.staleDays ?? 0);
+  const quietNote = quiet.length
+    ? `No readings from ${listNames(quiet.map((r) => r.name))} for ${Math.min(...quietDays) === Math.max(...quietDays) ? quietDays[0] : `${Math.min(...quietDays)} or more`} days.`
+    : "";
+  const live = rows.filter((r) => !quiet.includes(r));
+  if (live.length === 0) return quietNote;
+  const withQuiet = (text: string) => (quietNote ? `${text} ${quietNote}` : text);
+  const high = live.filter((r) => r.riskLevel === "high");
   if (high.length === 0) {
-    const watch = rows.filter((r) => r.riskLevel === "medium");
-    if (watch.length === 0) return `All ${rows.length === 1 ? "your farms are" : `${rows.length} farms are`} in range. Keep the current schedules.`;
-    return `No farm is at high risk. Keep an eye on ${listNames(watch.map((r) => r.name))}: ${watch
+    const watch = live.filter((r) => r.riskLevel === "medium");
+    if (watch.length === 0) return withQuiet(`All ${live.length === 1 ? "your farms are" : `${live.length} farms are`} in range. Keep the current schedules.`);
+    return withQuiet(`No farm is at high risk. Keep an eye on ${listNames(watch.map((r) => r.name))}: ${watch
       .map((r) => r.reason.label.toLowerCase())
       .filter((v, i, a) => a.indexOf(v) === i)
-      .join(", ")}.`;
+      .join(", ")}.`);
   }
   const byReason = new Map<string, string[]>();
   for (const r of high) byReason.set(r.reason.label, [...(byReason.get(r.reason.label) ?? []), r.name]);
   const clauses = [...byReason.entries()].map(([label, names]) => reasonClause(label, names));
   const text = clauses.length > 1 ? `${clauses.slice(0, -1).join(", ")}, and ${clauses[clauses.length - 1]}` : clauses[0];
-  return `${text[0].toUpperCase()}${text.slice(1)}.`;
+  return withQuiet(`${text[0].toUpperCase()}${text.slice(1)}.`);
 }
 
 /** "Good morning" / "Good afternoon" / "Good evening", by the hour in Qatar. */

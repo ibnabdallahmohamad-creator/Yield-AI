@@ -8,7 +8,9 @@ function boundaryLabel(metric: MetricDef, value: number): string {
   return value.toLocaleString("en-US", { maximumFractionDigits: metric.key === "ph" ? 1 : 0 });
 }
 
-function Scale({ metric, marker }: { metric: MetricDef; marker?: { value: number | null } | null }) {
+const LIMIT_RED = "#c0262d";
+
+function Scale({ metric, marker, limit }: { metric: MetricDef; marker?: { value: number | null } | null; limit?: MapLimit | null }) {
   const n = metric.classes.length;
   const boundaries = metric.classes.slice(0, -1).map((c) => c.max);
   return (
@@ -23,6 +25,13 @@ function Scale({ metric, marker }: { metric: MetricDef; marker?: { value: number
         {boundaries.map((_, i) => (
           <span key={i} className="absolute top-0 h-2.5 w-px bg-black/25" style={{ left: `${((i + 1) / n) * 100}%` }} />
         ))}
+        {limit && limit.value != null ? (
+          <span
+            className="absolute -top-0.5 h-3.5 w-0.5 -translate-x-1/2 rounded-full ring-1 ring-white"
+            style={{ left: `${legendPosition(metric, limit.value) * 100}%`, background: LIMIT_RED }}
+            aria-hidden="true"
+          />
+        ) : null}
         {marker && marker.value != null ? (
           <span
             className="absolute -top-1 h-4.5 w-1 -translate-x-1/2 rounded-full bg-foreground ring-2 ring-card"
@@ -42,6 +51,25 @@ function Scale({ metric, marker }: { metric: MetricDef; marker?: { value: number
   );
 }
 
+export interface MapLimit {
+  /** Null when the fields' limits differ: the key names the line without a value or a tick. */
+  value: number | null;
+  label: string;
+}
+
+/** The key to the red isoline on the field. */
+function LimitKey({ metric, limit }: { metric: MetricDef; limit: MapLimit }) {
+  return (
+    <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+      <span className="h-[3px] w-4 shrink-0 rounded-full ring-1 ring-white" style={{ background: LIMIT_RED }} aria-hidden="true" />
+      <span className="truncate">
+        {limit.label}
+        {limit.value != null ? ` ${formatValue(metric, limit.value)}` : ""}
+      </span>
+    </p>
+  );
+}
+
 /**
  * Colour scale with the fixed class thresholds and a marker for the selected farm. `card` floats
  * over the map; `strip` is a full-width row under it (compare mode and phones).
@@ -49,6 +77,7 @@ function Scale({ metric, marker }: { metric: MetricDef; marker?: { value: number
 export function MapLegend({
   metric,
   marker,
+  limit = null,
   variant = "card",
   info: showInfo = true,
   action,
@@ -56,6 +85,8 @@ export function MapLegend({
 }: {
   metric: MetricDef;
   marker?: { value: number | null; label: string } | null;
+  /** The selected farm's limit, drawn on the field as a red isoline. */
+  limit?: MapLimit | null;
   /** `chip`: the compact floating legend with no controls (the method lives on Farm details → Method). */
   variant?: "card" | "strip" | "chip";
   /** Show the ⓘ method tip (off where every control must be a 44 px touch target). */
@@ -93,9 +124,10 @@ export function MapLegend({
           <span className="shrink-0 text-muted-foreground">{metric.unit === "pH" ? "" : metric.unit}</span>
         </div>
         <div className="mt-1.5">
-          <Scale metric={metric} marker={marker} />
+          <Scale metric={metric} marker={marker} limit={limit} />
         </div>
         {readout}
+        {limit ? <LimitKey metric={metric} limit={limit} /> : null}
         {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
       </div>
     );
@@ -109,10 +141,11 @@ export function MapLegend({
           {info}
         </div>
         <div className="order-last w-full pt-1 sm:order-none sm:w-auto sm:max-w-sm sm:min-w-48 sm:flex-1 sm:pt-1.5">
-          <Scale metric={metric} marker={marker} />
+          <Scale metric={metric} marker={marker} limit={limit} />
         </div>
         <div className="ml-auto min-w-0">
           {readout}
+          {limit ? <LimitKey metric={metric} limit={limit} /> : null}
           {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
         </div>
         {action ? <div className="order-last w-full pt-1 [&>*]:w-full">{action}</div> : null}
@@ -132,9 +165,10 @@ export function MapLegend({
         {info}
       </div>
       <div className="mt-2.5">
-        <Scale metric={metric} marker={marker} />
+        <Scale metric={metric} marker={marker} limit={limit} />
       </div>
       {marker ? <div className="mt-1">{readout}</div> : null}
+      {limit ? <LimitKey metric={metric} limit={limit} /> : null}
       {note ? <p className="mt-0.5 text-xs text-muted-foreground">{note}</p> : null}
     </div>
   );

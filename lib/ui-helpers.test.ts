@@ -6,8 +6,9 @@ import { aggregateDaily } from "./data/aggregate";
 import { buildDashboardData } from "./data/derive";
 import { generateDemoDataset } from "./data/generate";
 import { generateInsights } from "./data/insights";
-import { cropChoice, irrigationPlan, riskReason, riskTrend, sortedActions, weeklyActions } from "./dashboard";
+import { cropChoice, daysSinceReading, irrigationPlan, plainHeadline, riskReason, riskTrend, sortedActions, weeklyActions } from "./dashboard";
 import { compassPoint, plural, splitFirstSentence } from "./format";
+import { farmRow } from "./portfolio";
 import type { DashboardData, FarmBundle, FarmDay, WeatherDay } from "./types";
 
 let data: DashboardData;
@@ -35,6 +36,22 @@ describe("riskReason", () => {
     expect(riskReason(bundleOf("sheehaniya-west"))).toMatchObject({ label: "Drying out", tone: "bad", driver: "water" });
     expect(riskReason(bundleOf("shamal-greenhouses"))).toMatchObject({ label: "Salt rising", driver: "salinity" });
     expect(riskReason(bundleOf("shamal-east"))).toMatchObject({ label: "Healthy", tone: "ok", driver: "none" });
+  });
+
+  it("shows a farm whose probes went quiet as quiet, not by its old readings", () => {
+    const b = bundleOf("sheehaniya-west");
+    const silent = (n: number): FarmBundle => ({ ...b, days: b.days.map((d, i) => (i >= b.days.length - n ? null : d)) });
+    expect(riskReason(silent(3))).toEqual({ label: "No readings for 3 days", tone: "warn", driver: "none" });
+    expect(plainHeadline(silent(3))).toBe("The probes have sent nothing for 3 days, so these numbers are from 21 Sep. Check their power and Wi-Fi.");
+    expect(daysSinceReading(silent(3))).toBe(3);
+    // Yesterday's reading still counts, and its irrigation plan moves up a day.
+    expect(riskReason(silent(1)).label).toBe("Drying out");
+    const today = farmRow(b, data.dates).irrigation;
+    const dayOld = farmRow(silent(1), data.dates);
+    expect(dayOld.staleDays).toBe(1);
+    expect(dayOld.irrigation.status).toBe("now");
+    expect(today.status).toBe("now");
+    expect(farmRow(silent(2), data.dates).irrigation.status).toBe("unknown");
   });
 
   it("says so when there are no readings", () => {

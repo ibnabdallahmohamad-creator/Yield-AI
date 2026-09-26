@@ -58,4 +58,4 @@ next-env.d.ts
 # Fine-tuning dataset: the weather cache and the full dataset file are regenerated with
 # `npm run dataset:weather` and `npm run dataset:build`; the sample, stats and card stay in git.
 /data/dataset/cache/
-/data/dataset/unsloth/yield-ai-qatar.jsonl
+/data/dataset/unsloth/harvestar-ai-qatar.jsonl

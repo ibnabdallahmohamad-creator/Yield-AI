@@ -3,11 +3,14 @@
  * (= mS/cm) or `ec_us_cm` in µS/cm as most 7-in-1 probes report it. Documented in the README.
  */
 import { z } from "zod";
+import { normalizeDeviceUnits } from "../ai/esp32-units";
 import type { Farm, Sensor, SensorReading } from "../types";
 
 const num = z.coerce.number().refine(Number.isFinite, "must be a number");
 
-export const IngestReadingSchema = z
+export const IngestReadingSchema = z.preprocess(
+  normalizeDeviceUnits,
+  z
   .object({
     farm_id: z.string().min(1).max(64),
     sensor_id: z.string().min(1).max(64),
@@ -27,7 +30,8 @@ export const IngestReadingSchema = z
   })
   .refine((r) => [r.moisture, r.temperature, r.ec, r.ec_us_cm, r.ph, r.n, r.p, r.k].some((v) => v != null), {
     message: "Send at least one measurement (moisture, temperature, ec/ec_us_cm, ph, n, p or k).",
-  });
+  }),
+);
 
 export const IngestPayloadSchema = z.union([
   IngestReadingSchema,

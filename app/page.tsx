@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight, Check, ChevronRight, Cpu, LineChart, ListChecks, MapIcon, MessagesSquare, Sparkles, Sprout } from "lucide-react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { DemoSignIn } from "@/components/auth/auth-forms";
 import { FieldPattern } from "@/components/brand/field-pattern";
 import { Logo } from "@/components/brand/logo";
 import { DemoChart } from "@/components/landing/demo-chart";
@@ -94,7 +95,7 @@ export default async function Home() {
                 Every field, every probe, one clear next step.
               </h1>
               <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-xl">
-                Yield AI turns soil-probe readings from farms across northern Qatar into salinity and moisture maps, risk scores and
+                Harvestar AI turns soil-probe readings from farms across northern Qatar into salinity and moisture maps, risk scores and
                 plain-language actions — grounded in FAO-56 and FAO-29 science.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -103,11 +104,16 @@ export default async function Home() {
                     Open Dashboard <ArrowRight />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-11 bg-card/70 px-5 text-base">
-                  <a href="#demo">
-                    Try the demo <ArrowDown />
-                  </a>
-                </Button>
+                {/* Signed out: one click into the demo account. Signed in: the demo widgets below. */}
+                {user ? (
+                  <Button asChild variant="outline" className="h-11 bg-card/70 px-5 text-base">
+                    <a href="#demo">
+                      See the demo <ArrowDown />
+                    </a>
+                  </Button>
+                ) : (
+                  <DemoSignIn next="/dashboard" label="Try the demo" className="w-auto bg-card/70 px-5 sm:h-11" />
+                )}
               </div>
               <ul className="mt-8 grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2">
                 {[

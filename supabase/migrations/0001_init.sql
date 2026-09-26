@@ -1,4 +1,4 @@
--- Yield AI — database schema
+-- Harvestar AI — database schema
 -- Apply with the Supabase CLI (`npx supabase db push`) or paste into the SQL editor,
 -- then run `npm run seed` to load the 8 demo farms, 60 days of probe readings and insights.
 

@@ -2,16 +2,20 @@
 
 /**
  * "What to do": the most urgent actions under the same priority headings as the Plan and the Advice
- * tab (titles only; the most urgent group with its one-line reasons), and the way to the full advice or the
- * assistant. Sits beside the farm's map, under the headline numbers it would otherwise repeat.
+ * tab (titles only; the most urgent group with its one-line reasons), each with a tick and a link to
+ * the action on the Advice tab, and the way to the full advice or the assistant. Sits beside the
+ * farm's map, under the headline numbers it would otherwise repeat.
  */
 import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useId } from "react";
 import { HealthDot } from "@/components/dashboard/risk-badge";
+import { DoneCheck, useActionTicks } from "@/components/insights/farm-advice";
 import { RiskSparkline } from "@/components/insights/risk-sparkline";
-import { PRIORITY_TONE, PRIORITY_WORD, riskReason, riskTrend, sortedActions } from "@/lib/dashboard";
+import { actionFarm, PRIORITY_TONE, PRIORITY_WORD, riskReason, riskTrend, sortedActions, type FarmAction } from "@/lib/dashboard";
+import { actionAnchor } from "@/lib/done-actions";
 import { splitFirstSentence } from "@/lib/format";
-import { assistantHref } from "@/lib/routes";
+import { assistantHref, farmTabHref } from "@/lib/routes";
 import type { FarmBundle } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -31,18 +35,21 @@ export function WhatToDo({
   className?: string;
 }) {
   const { farm, insight } = bundle;
-  const actions = sortedActions(insight);
-  const shown = actions.slice(0, limit);
+  const ids = useId();
+  const af = actionFarm(bundle);
+  const actions: FarmAction[] = sortedActions(insight).map((rec) => ({ rec, farm: af }));
+  const { left, remaining, isDone, tick } = useActionTicks(actions);
+  const shown = left.slice(0, limit);
   // Consecutive runs of one priority (the actions are sorted by priority).
-  const groups: Array<{ priority: (typeof shown)[number]["priority"]; recs: typeof shown }> = [];
-  for (const rec of shown) {
+  const groups: Array<{ priority: FarmAction["rec"]["priority"]; items: FarmAction[] }> = [];
+  for (const a of shown) {
     const last = groups.at(-1);
-    if (last && last.priority === rec.priority) last.recs.push(rec);
-    else groups.push({ priority: rec.priority, recs: [rec] });
+    if (last && last.priority === a.rec.priority) last.items.push(a);
+    else groups.push({ priority: a.rec.priority, items: [a] });
   }
   const reason = riskReason(bundle);
   const trend = riskTrend(bundle.riskHistory);
-  const top = actions[0];
+  const top = left.find((a) => !isDone(a))?.rec;
 
   return (
     <section aria-labelledby="todo-title" className={cn("flex flex-col rounded-2xl border bg-card shadow-xs", className)}>
@@ -50,7 +57,9 @@ export function WhatToDo({
         <h2 id="todo-title" className="text-base font-semibold">
           What to do
         </h2>
-        {shown.length > 0 ? (
+        {actions.length > 0 && left.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">All {actions.length} actions are done. New advice appears as the readings change.</p>
+        ) : shown.length > 0 ? (
           <div className="mt-3 space-y-4" aria-label="Most urgent actions" role="group">
             {groups.map((g, gi) => (
               <div key={g.priority}>
@@ -59,14 +68,31 @@ export function WhatToDo({
                   {PRIORITY_WORD[g.priority]}
                 </h3>
                 <ol className="mt-2.5 space-y-2.5">
-                  {g.recs.map((rec, i) => (
-                    <li key={`${rec.title}-${i}`}>
-                      <p className="text-sm leading-snug font-semibold text-pretty">{rec.title}</p>
-                      {gi === 0 && rec.detail ? (
-                        <p className="mt-0.5 text-sm leading-snug text-pretty text-muted-foreground">{splitFirstSentence(rec.detail)[0]}</p>
-                      ) : null}
-                    </li>
-                  ))}
+                  {g.items.map((a, i) => {
+                    const done = isDone(a);
+                    const titleId = `${ids}-${gi}-${i}`;
+                    return (
+                      <li key={`${a.rec.title}-${i}`} className="flex items-start gap-3">
+                        <DoneCheck done={done} onChange={(v) => tick(a, v)} labelledBy={titleId} className="-mt-3" />
+                        {/* The title's link covers the text block, at least 44px tall on touch screens. */}
+                        <div className="relative min-h-11 min-w-0 flex-1 lg:pointer-fine:min-h-0">
+                          <Link
+                            id={titleId}
+                            href={`${farmTabHref(farm.id, "advice")}#${actionAnchor(a.rec.title)}`}
+                            className={cn(
+                              "block text-sm leading-snug font-semibold text-pretty after:absolute after:inset-0 after:rounded-sm hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring/60",
+                              done && "text-muted-foreground line-through decoration-muted-foreground/60",
+                            )}
+                          >
+                            {a.rec.title}
+                          </Link>
+                          {gi === 0 && a.rec.detail && !done ? (
+                            <p className="mt-0.5 text-sm leading-snug text-pretty text-muted-foreground">{splitFirstSentence(a.rec.detail)[0]}</p>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
               </div>
             ))}
@@ -78,7 +104,7 @@ export function WhatToDo({
         <div className="mt-3 flex flex-wrap gap-x-5">
           {onAllActions ? (
             <button type="button" onClick={onAllActions} className={LINK}>
-              {actions.length > shown.length ? `All ${actions.length} actions` : "Full advice"}
+              {left.length > shown.length ? `All ${remaining} actions` : "Full advice"}
               <ArrowRight className="size-4" aria-hidden="true" />
             </button>
           ) : null}

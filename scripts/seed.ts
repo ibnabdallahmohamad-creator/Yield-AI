@@ -110,7 +110,7 @@ async function main() {
   if (insightError) throw new Error(`ai_insights insert: ${insightError.message}`);
 
   console.log("• Ensuring the demo account exists…");
-  const demoEmail = process.env.DEMO_EMAIL?.trim() || "demo@yield-ai.app";
+  const demoEmail = process.env.DEMO_EMAIL?.trim() || "demo@harvestar.ai";
   const demoPassword = process.env.DEMO_PASSWORD?.trim() || "harvest-demo-2026";
   const { error: userError } = await supabase.auth.admin.createUser({
     email: demoEmail,

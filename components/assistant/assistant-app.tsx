@@ -803,7 +803,7 @@ export function AssistantApp({ boot }: { boot: AssistantBoot }) {
   // The tab shows the chat's title.
   const title = conversation?.title ?? (missing === "not-found" ? "Chat not found" : "New chat");
   useEffect(() => {
-    document.title = `${title} · Yield AI`;
+    document.title = `${title} · Harvestar AI`;
   }, [title]);
 
   // --- Derived ------------------------------------------------------------------------------------

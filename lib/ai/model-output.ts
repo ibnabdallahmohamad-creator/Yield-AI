@@ -1,5 +1,5 @@
 /**
- * The fine-tuned Yield AI model's answer, taken apart for the website with plain code (no second model):
+ * The fine-tuned Harvestar AI model's answer, taken apart for the website with plain code (no second model):
  *
  *   parseModelReply(reply)  raw model text → the validated answer (lib/dataset/schema.ts), or an error
  *   SECTION_LAYOUT          which section goes where on the page, in reading order

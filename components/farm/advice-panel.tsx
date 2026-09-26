@@ -5,21 +5,15 @@
  * report sections — warnings, findings, the next 7 days, economics, harvest — beside the risk trend
  * and the farm's location.
  */
-import { ArrowRight, ListChecks, Sparkles } from "lucide-react";
-import Link from "next/link";
 import { HealthDot } from "@/components/dashboard/risk-badge";
 import { FarmAdvice } from "@/components/insights/farm-advice";
 import { LocationCard, ReportSections } from "@/components/insights/report-sections";
-import { RiskSparkline } from "@/components/insights/risk-sparkline";
+import { RiskTrendChart } from "@/components/insights/risk-trend-chart";
 import { actionFarm, cropChoice, plainHeadline, riskReason, riskTrend } from "@/lib/dashboard";
-import { formatShortDay } from "@/lib/format";
 import type { QatarLocation } from "@/lib/qatar/location";
-import { assistantHref } from "@/lib/routes";
 import type { FarmBundle } from "@/lib/types";
 
 const CARD = "rounded-2xl border bg-card p-5 shadow-xs sm:p-6";
-const LINK =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none sm:min-h-8 sm:pointer-coarse:min-h-11";
 
 export function AdvicePanel({ bundle, location }: { bundle: FarmBundle; location: QatarLocation }) {
   const { farm, insight } = bundle;
@@ -46,32 +40,10 @@ export function AdvicePanel({ bundle, location }: { bundle: FarmBundle; location
               {trendText ? <span className="whitespace-nowrap"> · {trendText}</span> : null}
             </span>
           </p>
-          <RiskSparkline points={bundle.riskHistory} level={insight?.risk_level ?? null} width={280} height={72} className="mt-4 h-auto w-full" />
-          {bundle.riskHistory.length > 1 ? (
-            <div className="mt-1 flex justify-between text-xs text-muted-foreground tabular">
-              <span>{formatShortDay(bundle.riskHistory[0].date)}</span>
-              <span>Today</span>
-            </div>
-          ) : null}
+          <RiskTrendChart points={bundle.riskHistory} level={insight?.risk_level ?? null} className="mt-4" />
           <p className="mt-3 text-sm leading-relaxed text-pretty text-muted-foreground">{plainHeadline(bundle)}</p>
         </section>
         <LocationCard farmId={farm.id} location={location} />
-        <section aria-labelledby="next-heading" className={CARD}>
-          <h2 id="next-heading" className="text-base font-semibold">
-            Go further
-          </h2>
-          <div className="mt-2 flex flex-col items-start">
-            <Link href={assistantHref(farm.id, `Walk me through this week's plan for ${farm.name}.`, insight?.id)} className={LINK}>
-              <Sparkles className="size-4" aria-hidden="true" />
-              Ask AI to plan the week
-            </Link>
-            <Link href="/dashboard/insights" className={LINK}>
-              <ListChecks className="size-4" aria-hidden="true" />
-              This week across all farms
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </Link>
-          </div>
-        </section>
       </aside>
     </div>
   );

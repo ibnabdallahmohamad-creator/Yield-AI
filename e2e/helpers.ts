@@ -16,7 +16,7 @@ export function collectPageErrors(page: Page): string[] {
 }
 
 /** Answers come from the AI service, the LLM fallback or the offline engine, depending on the env. */
-export const ANSWER_SOURCE = /Yield AI model|Claude · LLM fallback|Built-in agronomy engine/;
+export const ANSWER_SOURCE = /Harvestar AI model|Claude · LLM fallback|Built-in agronomy engine/;
 
 export interface Clutter {
   /** Interactive elements of the page itself in the first screen (Leaflet's own zoom buttons and pins, and the app chrome, excluded). */

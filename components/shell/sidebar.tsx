@@ -9,7 +9,7 @@ import { ChevronsLeft, ChevronsRight, CloudSun, Cpu, House, LandPlot, ListChecks
 import Link from "next/link";
 import { LogoMark } from "@/components/brand/logo";
 import { HealthDot, RISK_TONE, riskLabel } from "@/components/dashboard/risk-badge";
-import { farmHref, sectionHref, useShell, type Section, type ShellFarm } from "@/components/shell/shell-context";
+import { farmHref, sectionHref, useDoFirstLeft, useShell, type Section, type ShellFarm } from "@/components/shell/shell-context";
 import { UserMenu } from "@/components/shell/user-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -104,7 +104,7 @@ export function Sidebar({ user }: { user: { name: string; email: string } }) {
   const { section, farmId, farms, sidebarCollapsed, setSidebarCollapsed } = useShell();
   const wide = useMediaQuery("(min-width: 1280px)", true);
   const rail = !wide || sidebarCollapsed;
-  const doFirst = farms.reduce((n, f) => n + f.doFirst, 0);
+  const doFirst = useDoFirstLeft();
 
   return (
     <nav
@@ -113,11 +113,11 @@ export function Sidebar({ user }: { user: { name: string; email: string } }) {
       className="fixed inset-y-0 left-0 z-30 hidden w-[4.25rem] flex-col border-r bg-sidebar lg:flex xl:w-[17rem] xl:group-data-[collapsed=true]/shell:w-[4.25rem]"
     >
       <div className="flex h-14 shrink-0 items-center gap-2.5 px-4">
-        <Link href="/dashboard" aria-label="Yield AI home" className="-m-1 rounded-lg p-1 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">
+        <Link href="/dashboard" aria-label="Harvestar AI home" className="-m-1 rounded-lg p-1 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none">
           <LogoMark className="size-7" />
         </Link>
         <span className={cn(WIDE, "flex-1 items-baseline gap-1 text-base font-semibold tracking-tight")}>
-          Yield <span className="text-primary">AI</span>
+          Harvestar <span className="text-primary">AI</span>
         </span>
         <button
           type="button"

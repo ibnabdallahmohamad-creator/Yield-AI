@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useDoneActions } from "@/hooks/use-done-actions";
 import { useLiveUpdates, type LiveStatus } from "@/hooks/use-live-updates";
 import { DEFAULT_INTERVAL_S, INTERVAL_OPTIONS_S, type Device } from "@/lib/account/types";
 import type { RiskLevel } from "@/lib/ai/contract";
@@ -18,8 +19,8 @@ export interface ShellFarm {
   riskScore: number | null;
   reason: string;
   reasonTone: HealthTone;
-  /** "Do first" (high-priority) actions in the farm's latest assessment. */
-  doFirst: number;
+  /** Keys (lib/done-actions) of the "Do first" actions in the farm's latest assessment. */
+  doFirst: string[];
 }
 
 export interface ShellStatus {
@@ -171,7 +172,10 @@ function readSavedInterval(): number | null {
 export function ShellProvider({ farms, status, children }: { farms: ShellFarm[]; status: ShellStatus; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const section = sectionOf(pathname);
+  // An unknown farm id (the farm not-found page) is no farm the header or sidebar can point at.
+  const pathSection = sectionOf(pathname);
+  const pathFarm = pathSection === "farm" ? decodeURIComponent(pathname.split("/")[3] ?? "") : null;
+  const section: Section = pathSection === "farm" && !farms.some((f) => f.id === pathFarm) ? "other" : pathSection;
   const [reportedFarmId, setFarmId] = useState<string | null>(null);
   const savedFarmId = useSyncExternalStore(subscribeSavedFarm, readSavedFarm, () => null);
   const farmId = reportedFarmId ?? (farms.some((f) => f.id === savedFarmId) ? savedFarmId : null) ?? farms[0]?.id ?? null;
@@ -354,6 +358,13 @@ export function useShell(): ShellContextValue {
   const ctx = useContext(ShellContext);
   if (!ctx) throw new Error("useShell must be used inside <ShellProvider>");
   return ctx;
+}
+
+/** "Do first" actions across the farms that are not ticked off yet: the Plan badge. */
+export function useDoFirstLeft(): number {
+  const { farms } = useShell();
+  const { done } = useDoneActions();
+  return farms.reduce((n, f) => n + f.doFirst.filter((k) => !done.has(k)).length, 0);
 }
 
 /** Optional variant for components that also render outside the dashboard (e.g. the landing page). */

@@ -1,4 +1,4 @@
-# Yield AI — UI/UX improvement brainstorm
+# Harvestar AI — UI/UX improvement brainstorm
 
 > Status: proposal / brainstorm. No app code has changed. File references are `path:line` against the
 > current `main` (commit `b45e20d`).

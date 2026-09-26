@@ -1,6 +1,6 @@
-# Yield AI fine-tuning dataset (Unsloth)
+# Harvestar AI fine-tuning dataset (Unsloth)
 
-A chat-format dataset for fine-tuning a small open model with [Unsloth](https://unsloth.ai) into Yield AI's
+A chat-format dataset for fine-tuning a small open model with [Unsloth](https://unsloth.ai) into Harvestar AI's
 Qatar farm advisor. Every example is one `system` / `user` / `assistant` conversation:
 
 - **user**: the question on the first line, tagged **`Q1:`** (land suitability) or **`Q2:`** (an inquiry
@@ -26,7 +26,7 @@ There are two tasks, split 50/50:
 
 | File | In git | What it is |
 |---|---|---|
-| `unsloth/yield-ai-qatar.jsonl` | no (66 MB, regenerate) | **The whole dataset in one file**: 3,000 conversations, Q1 and Q2 interleaved |
+| `unsloth/harvestar-ai-qatar.jsonl` | no (66 MB, regenerate) | **The whole dataset in one file**: 3,000 conversations, Q1 and Q2 interleaved |
 | `unsloth/README.md` | yes | Hugging Face dataset card, so the `unsloth/` folder can be uploaded to the Hub as it is |
 | `unsloth/sample.jsonl` | yes | 4 examples (2 per task) to read |
 | `unsloth/stats.json` | yes | Counts by task, focus, crop, system, water source, top land use and warning severity |
@@ -235,11 +235,11 @@ If an argument has been renamed in your Unsloth or TRL version, follow Unsloth's
 
 **Get the file to the training machine** in any of three ways:
 
-- Copy `data/dataset/unsloth/yield-ai-qatar.jsonl` (for example, upload it to Colab).
+- Copy `data/dataset/unsloth/harvestar-ai-qatar.jsonl` (for example, upload it to Colab).
 - Put it on the Hugging Face Hub, then load it by name:
-  `hf upload your-name/yield-ai-qatar data/dataset/unsloth . --repo-type dataset --private`.
+  `hf upload your-name/harvestar-ai-qatar data/dataset/unsloth . --repo-type dataset --private`.
   The folder's `README.md` is the dataset card and points the Hub at the JSONL.
-- Load it from any direct URL with `data_files="https://…/yield-ai-qatar.jsonl"`.
+- Load it from any direct URL with `data_files="https://…/harvestar-ai-qatar.jsonl"`.
 
 ```python
 from datasets import load_dataset
@@ -264,8 +264,8 @@ model = FastLanguageModel.get_peft_model(
     random_state=3407,
 )
 
-ds = load_dataset("json", data_files="yield-ai-qatar.jsonl", split="train")
-# or: ds = load_dataset("your-name/yield-ai-qatar", split="train")
+ds = load_dataset("json", data_files="harvestar-ai-qatar.jsonl", split="train")
+# or: ds = load_dataset("your-name/harvestar-ai-qatar", split="train")
 ds = ds.train_test_split(test_size=0.05, seed=3407)
 # The model's own chat template; the messages are already system / user / assistant.
 ds = ds.map(lambda b: {"text": [tokenizer.apply_chat_template(m, tokenize=False) for m in b["messages"]]}, batched=True)
@@ -293,7 +293,7 @@ trainer = SFTTrainer(
 # Learn only the answers, not the long inputs.
 trainer = train_on_responses_only(trainer, instruction_part="<|im_start|>user\n", response_part="<|im_start|>assistant\n")
 trainer.train()
-model.save_pretrained_gguf("yield-ai-4b", tokenizer, quantization_method="q4_k_m")  # for llama.cpp / Ollama
+model.save_pretrained_gguf("harvestar-ai-4b", tokenizer, quantization_method="q4_k_m")  # for llama.cpp / Ollama
 ```
 
 At inference, send the same `SYSTEM_PROMPT`, and build the user turn with `formatUserMessage`

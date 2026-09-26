@@ -29,6 +29,7 @@ function row(name: string, riskLevel: FarmRow["riskLevel"], reason: string, when
     irrigation: plan(when, inDays),
     history: [],
     doFirst,
+    staleDays: 0,
   };
 }
 
@@ -53,6 +54,15 @@ describe("portfolio", () => {
     expect(portfolioHeadline([row("A", "low", "Healthy"), row("B", "low", "Healthy")])).toBe("All 2 farms are in range. Keep the current schedules.");
     expect(portfolioHeadline([row("A", "medium", "Near salt limit"), row("B", "low", "Healthy")])).toBe("No farm is at high risk. Keep an eye on A: near salt limit.");
     expect(portfolioHeadline([])).toBe("No farms yet.");
+  });
+
+  it("names farms whose probes went quiet apart from the rest", () => {
+    const quiet = (name: string, days: number): FarmRow => ({ ...row(name, "high", `No readings for ${days} days`), staleDays: days });
+    expect(portfolioHeadline([row("A", "high", "Salt rising"), quiet("Q", 3)])).toBe("Salt is rising at A. No readings from Q for 3 days.");
+    expect(portfolioHeadline([row("A", "low", "Healthy"), quiet("Q", 2), quiet("R", 4)])).toBe("All your farms are in range. Keep the current schedules. No readings from Q and R for 2 or more days.");
+    expect(portfolioHeadline([quiet("Q", 5)])).toBe("No readings from Q for 5 days.");
+    // A day-old reading isn't quiet yet.
+    expect(portfolioHeadline([{ ...row("A", "low", "Healthy"), staleDays: 1 }])).toBe("All your farms are in range. Keep the current schedules.");
   });
 
   it("counts farms by risk, farms to water today and do-first actions", () => {

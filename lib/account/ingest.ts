@@ -6,6 +6,7 @@
  */
 import "server-only";
 import { z } from "zod";
+import { normalizeDeviceUnits } from "../ai/esp32-units";
 import type { AppUser } from "../auth/session";
 import type { Farm, SensorReading } from "../types";
 import { localDeviceRegistry } from "./local-store";
@@ -43,7 +44,7 @@ function withAliases(value: unknown): unknown {
 }
 
 export const DeviceReadingSchema = z.preprocess(
-  withAliases,
+  (value) => withAliases(normalizeDeviceUnits(value)),
   z
     .object({
       /** ISO 8601 with offset, or Unix time in seconds (or ms). Defaults to when the server receives it. */
@@ -157,7 +158,7 @@ export async function authenticateDevice(token: string): Promise<{ device: Store
   const hash = hashDeviceToken(token);
   for (const registry of deviceRegistries()) {
     try {
-      const device = await registry.findByToken(hash);
+      const device = await registry.findByToken(hash, token);
       if (device) return { device, registry };
     } catch (error) {
       console.warn("[device] Token lookup failed:", error instanceof Error ? error.message : error);
@@ -209,7 +210,7 @@ export async function pairDevice(rawCode: string, meta: DeviceMeta): Promise<Pai
   const token = newDeviceToken();
   for (const registry of deviceRegistries()) {
     try {
-      const device = await registry.claimPairingCode(code, { hash: token.hash, hint: token.hint }, meta);
+      const device = await registry.claimPairingCode(code, { hash: token.hash, hint: token.hint, token: token.token }, meta);
       if (device) return { device, token: token.token };
     } catch (error) {
       console.warn("[device] Pairing lookup failed:", error instanceof Error ? error.message : error);

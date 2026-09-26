@@ -13,7 +13,7 @@ import { PHONE_QUERY, useMediaQuery } from "@/hooks/use-media-query";
 import type { HealthTone } from "@/lib/dashboard";
 import { formatDay, formatTime, qatarDay } from "@/lib/format";
 import type { FactorKey, LandReport, LandResearch, RankedOption } from "@/lib/land/contract";
-import { WATER_SOURCE_LABEL } from "@/lib/land/options";
+import { WATER_SOURCE_LABEL, type LandUseId } from "@/lib/land/options";
 import { cn } from "@/lib/utils";
 
 const CARD = "rounded-2xl border bg-card p-5 shadow-xs sm:p-6";
@@ -75,6 +75,32 @@ function SourceLinks({ sources }: { sources: Array<{ title: string; url: string 
   );
 }
 
+/**
+ * What the farm does now, scored on the same scale, so the best use reads as a change (or not).
+ * The farms grow vegetables or alfalfa; whether the vegetables are under cover isn't recorded, so
+ * both vegetable options are shown.
+ */
+function CurrentUse({ report, best }: { report: LandReport; best: RankedOption }) {
+  const s = report.sensors;
+  if (!s) return null;
+  const crop = s.crop.toLowerCase();
+  const ids: LandUseId[] = crop === "alfalfa" ? ["fodder-tse"] : ["greenhouse-veg", "openfield-winter-veg"];
+  const same = report.options.filter((o) => ids.includes(o.id));
+  const open = same.filter((o) => !o.blocked);
+  // When the current use can't continue on this water (fodder on groundwater), say why instead.
+  const note = open.some((o) => o.id === best.id)
+    ? "That is already the best fit for this land."
+    : open.length
+      ? `For comparison, this land scores ${open.map((o) => `${o.score} for ${o.name.toLowerCase()}`).join(" and ")}.`
+      : same[0]?.blocked;
+  if (!note) return null;
+  return (
+    <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-sm leading-relaxed text-pretty">
+      <span className="font-semibold">Now growing {crop}.</span> {note}
+    </p>
+  );
+}
+
 function BestUse({ report }: { report: LandReport }) {
   const best = report.options.find((o) => !o.blocked) ?? report.options[0];
   const runnerUp = report.options.filter((o) => o.id !== best.id && !o.blocked).slice(0, 2);
@@ -92,6 +118,7 @@ function BestUse({ report }: { report: LandReport }) {
         </p>
       </div>
       <p className="mt-1 text-sm leading-relaxed text-pretty text-muted-foreground">{best.summary}</p>
+      <CurrentUse report={report} best={best} />
       {report.research.status === "live" && report.research.advice ? (
         <p className="mt-3 border-l-2 border-primary/40 pl-3 text-base leading-relaxed text-pretty">{report.research.advice}</p>
       ) : null}

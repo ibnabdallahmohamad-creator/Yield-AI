@@ -5,7 +5,7 @@
  *
  *   npx tsx scripts/dataset/build-dataset.ts [--land 1500] [--farm 1500] [--seed 7]
  *
- * Writes the whole dataset to one file, data/dataset/unsloth/yield-ai-qatar.jsonl, plus sample.jsonl and
+ * Writes the whole dataset to one file, data/dataset/unsloth/harvestar-ai-qatar.jsonl, plus sample.jsonl and
  * stats.json. Each user turn starts with "Q1: <question>" (land suitability) or "Q2: <question>" (an
  * inquiry about a growing farm), then the JSON input.
  */
@@ -30,7 +30,7 @@ const ROOT = process.cwd();
 const CACHE = join(ROOT, "data", "dataset", "cache", "weather");
 const OUT = join(ROOT, "data", "dataset", "unsloth");
 /** The whole dataset in one file, ready for `load_dataset("json", data_files=...)`. */
-const DATASET_FILE = "yield-ai-qatar.jsonl";
+const DATASET_FILE = "harvestar-ai-qatar.jsonl";
 /** The national goal figures (NATIONAL_GOALS) are as of mid-2025, so land examples start when they were published. */
 const LAND_FROM = "2025-08-25";
 const FARM_FROM = "2023-08-01";

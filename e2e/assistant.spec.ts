@@ -25,6 +25,7 @@ test.describe("assistant", () => {
     await signIn(page, "/dashboard/insights");
     const first = page.getByRole("region", { name: "This week" }).getByRole("listitem").first();
     const title = (await first.locator("p").first().textContent())?.trim() ?? "";
+    await first.getByRole("button", { name: "Why" }).click();
     await first.getByRole("link", { name: "Ask AI about this" }).click();
     await expect(page).toHaveURL(/\/dashboard\/assistant/);
     await expect(page.locator("main")).toContainText(`Explain this recommendation and how to do it: ${title}`);

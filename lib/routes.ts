@@ -1,9 +1,10 @@
 /** URLs and URL state shared by server pages and client components. */
 
-/** A farm's workspace: Today (the snapshot) · Advice · Trends · Probes (daily table and every reading) · Method. */
+/** A farm's workspace: Today (the snapshot) · Advice · AI analysis (the model) · Trends · Probes (daily table and every reading) · Method. */
 export const FARM_TABS = [
   { key: "today", label: "Today" },
   { key: "advice", label: "Advice" },
+  { key: "ai", label: "AI analysis" },
   { key: "trends", label: "Trends" },
   { key: "probes", label: "Probes" },
   { key: "method", label: "Method" },

@@ -73,10 +73,20 @@ function Frame({ user, children }: { user: { name: string; email: string }; chil
   if (section === "assistant") return <>{children}</>;
   return (
     <div className="group/shell" data-collapsed={sidebarCollapsed ? "true" : "false"}>
+      {/* Off-screen until focused: the first Tab jumps past the sidebar and the header. */}
+      <a
+        href="#main"
+        data-chrome
+        className="fixed top-2 left-2 z-[60] -translate-y-24 rounded-md bg-background px-3 py-2 text-sm font-semibold shadow-md ring-2 ring-ring transition-transform focus:translate-y-0 focus-visible:outline-none"
+      >
+        Skip to content
+      </a>
       <Sidebar user={user} />
       <div className="min-h-dvh pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[4.25rem] xl:pl-[17rem] xl:group-data-[collapsed=true]/shell:pl-[4.25rem]">
         <AppHeader user={user} />
-        {children}
+        <main id="main" tabIndex={-1} className="outline-none">
+          {children}
+        </main>
       </div>
       <MobileTabs />
     </div>

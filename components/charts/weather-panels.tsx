@@ -1,13 +1,12 @@
 "use client";
 
-import { CloudOff, Droplets, RotateCcw } from "lucide-react";
+import { CloudOff, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
 import {
   Area,
   Bar,
   CartesianGrid,
-  Cell,
   ComposedChart,
   LabelList,
   Line,
@@ -34,12 +33,12 @@ import {
 } from "@/components/charts/chart-kit";
 import { ChartSummary, Headline, PanelFooter, Stat } from "@/components/charts/panel";
 import type { PanelProps } from "@/components/charts/soil-panels";
+import type { FarmBundle } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CROPS } from "@/lib/agronomy-tables";
 import { weatherRows, type WeatherRow } from "@/lib/charts";
 import { HEAT_STRESS_C } from "@/lib/crop-guides";
-import { formatDay, formatShortDay, formatWeekday, fmtNum } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatDay, formatShortDay, fmtNum, plural } from "@/lib/format";
 
 function WeatherUnavailable({ what }: { what: string }) {
   const router = useRouter();
@@ -159,166 +158,243 @@ export function TemperaturePanel(p: PanelProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Rain
+// Water balance (the "Water" tab)
 // ---------------------------------------------------------------------------
 
-function ForecastStrip({ rows }: { rows: WeatherRow[] }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">Next {rows.length} days</p>
-      <ol className="grid grid-cols-7 gap-1.5">
-        {rows.map((r) => {
-          const prob = r.rainProb ?? 0;
-          return (
-            <li key={r.date} className="flex flex-col items-center gap-1 rounded-lg bg-muted/60 px-1 py-2 text-center">
-              <span className="text-xs font-semibold">{formatWeekday(r.date)}</span>
-              <Droplets className={cn("size-4", prob >= 30 ? "text-[oklch(0.56_0.11_240)]" : "text-muted-foreground/60")} aria-hidden="true" />
-              <span className="text-xs tabular text-muted-foreground">
-                <span className="sr-only">Chance of rain </span>
-                {fmtNum(prob, 0)}%
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
+/** Crop water use in amber-brown, so it never reads as the farm-mean green or the rain blue. */
+const USE = "oklch(0.6 0.12 62)";
+/** What irrigation had to supply: the gap between crop water use and rain. */
+const GAP = "oklch(0.62 0.13 62 / 0.16)";
+
+interface WaterRow {
+  date: string;
+  forecast: boolean;
+  /** Daily crop water use (ETc, mm), drawn below zero; the forecast estimated from ET₀ × today's Kc. */
+  useDown: number | null;
+  useDownF: number | null;
+  rainUp: number | null;
+  rainUpF: number | null;
+  rainProb: number | null;
+  /** Cumulative since the start of the range, mm; the forecast continues them dashed. */
+  cumUse: number | null;
+  cumRain: number | null;
+  cumUseF: number | null;
+  cumRainF: number | null;
+  gap: [number, number] | null;
+  gapF: [number, number] | null;
+}
+
+/**
+ * Running totals of crop water use (ETc) and rain. Days without ETc add nothing and are counted in
+ * `missing`; until the first day with ETc the use totals stay empty rather than a made-up 0 mm.
+ */
+function waterRows(bundle: FarmBundle, rows: WeatherRow[], start: number): { rows: WaterRow[]; kc: number | null; missing: number } {
+  const byDate = new Map(bundle.weatherDays.map((w) => [w.date, w]));
+  // Today's crop coefficient, to turn the forecast reference ET₀ into crop water use.
+  let kc: number | null = null;
+  for (let i = bundle.days.length - 1; i >= 0 && kc == null; i--) {
+    const d = bundle.days[i];
+    if (d?.etc != null && d.et0 != null && d.et0 > 0) kc = d.etc / d.et0;
+  }
+  let use = 0;
+  let rain = 0;
+  let sawUse = false;
+  let missing = 0;
+  let lastPast = -1;
+  const out = rows.map((r, k): WaterRow => {
+    const day = r.forecast ? null : bundle.days[start + k];
+    const w = byDate.get(r.date);
+    const dayUse = r.forecast ? (w?.et0 != null && kc != null ? w.et0 * kc : null) : (day?.etc ?? null);
+    const dayRain = r.forecast ? (r.rainForecast ?? 0) : (r.rain ?? 0);
+    if (dayUse != null) {
+      use += dayUse;
+      sawUse = true;
+    } else if (!r.forecast) missing++;
+    rain += dayRain;
+    if (!r.forecast) lastPast = k;
+    const u = sawUse ? Math.round(use * 10) / 10 : null;
+    // The band is irrigation's share: between rain and use, and only where use is ahead of rain.
+    const gap: [number, number] | null = u != null ? [Math.min(rain, use), use] : null;
+    return {
+      date: r.date,
+      forecast: r.forecast,
+      useDown: !r.forecast && dayUse != null ? -dayUse : null,
+      useDownF: r.forecast && dayUse != null ? -dayUse : null,
+      rainUp: r.forecast ? null : dayRain,
+      rainUpF: r.forecast ? dayRain : null,
+      rainProb: r.rainProb,
+      cumUse: r.forecast ? null : u,
+      cumRain: r.forecast ? null : Math.round(rain * 10) / 10,
+      cumUseF: r.forecast ? u : null,
+      cumRainF: r.forecast ? Math.round(rain * 10) / 10 : null,
+      gap: r.forecast ? null : gap,
+      gapF: r.forecast ? gap : null,
+    };
+  });
+  // The forecast lines start from today's totals so they join up.
+  if (lastPast >= 0 && lastPast < out.length - 1) {
+    const t = out[lastPast];
+    out[lastPast] = { ...t, cumUseF: t.cumUse, cumRainF: t.cumRain, gapF: t.gap };
+  }
+  return { rows: out, kc, missing };
 }
 
 export function RainPanel(p: PanelProps) {
   const { bundle, dates, start, end } = p;
-  const rows = useMemo(() => weatherRows(bundle, dates, start, end), [bundle, dates, start, end]);
-  const hasWeather = rows.some((r) => r.tmax != null || r.rain != null);
-  const past = useMemo(() => rows.filter((r) => !r.forecast), [rows]);
+  const weather = useMemo(() => weatherRows(bundle, dates, start, end), [bundle, dates, start, end]);
+  const hasWeather = weather.some((r) => r.tmax != null || r.rain != null);
+  const { rows, missing } = useMemo(() => waterRows(bundle, weather, start), [bundle, weather, start]);
+  const past = rows.filter((r) => !r.forecast);
   const future = rows.filter((r) => r.forecast);
-  const total = past.reduce((a, r) => a + (r.rain ?? 0), 0);
-  const nextTotal = future.reduce((a, r) => a + (r.rainForecast ?? 0), 0);
+  const lastPast = past[past.length - 1];
+  const usedTotal = lastPast?.cumUse ?? null;
+  const rainTotal = lastPast?.cumRain ?? 0;
+  const irrigated = usedTotal != null ? Math.max(0, usedTotal - rainTotal) : null;
+  const nextUse = future.reduce((a, r) => a + -(r.useDownF ?? 0), 0);
+  const nextRain = future.reduce((a, r) => a + (r.rainUpF ?? 0), 0);
   const maxProb = Math.max(0, ...future.map((r) => r.rainProb ?? 0));
-  const lastRain = [...past].reverse().find((r) => (r.rain ?? 0) >= 0.5);
-  const etcTotal = [...past].reverse().find((r) => r.cumEtc != null)?.cumEtc ?? null;
+  const lastRain = [...weather].reverse().find((r) => !r.forecast && (r.rain ?? 0) >= 0.5);
   const today = dates[dates.length - 1];
-  const dry = total < 0.5;
   const cropName = CROPS[bundle.farm.main_crop].name.toLowerCase();
-  const barScale = useMemo(() => niceScale(rows.flatMap((r) => [r.rain, r.rainForecast]), { minSpan: 10, zero: true }), [rows]);
-  const cumScale = useMemo(() => niceScale(past.flatMap((r) => [r.cumEtc, r.cumRain]), { minSpan: 50, zero: true }), [past]);
+
+  const cumScale = useMemo(() => niceScale(rows.flatMap((r) => [r.cumUse, r.cumRain, r.cumUseF, r.cumRainF]), { minSpan: 20, zero: true }), [rows]);
+  const dailyMax = Math.max(4, ...rows.flatMap((r) => [-(r.useDown ?? 0), -(r.useDownF ?? 0), r.rainUp ?? 0, r.rainUpF ?? 0]));
+  const dailyStep = dailyMax <= 6 ? 2 : dailyMax <= 12 ? 4 : dailyMax <= 25 ? 10 : 20;
+  const dailyTop = Math.ceil(dailyMax / dailyStep) * dailyStep;
+  const syncId = `water-${bundle.farm.id}`;
 
   if (!hasWeather) return <WeatherUnavailable what="rainfall" />;
 
-  const sentence = dry
-    ? `No rain in the last ${past.length} days. Irrigation is this farm's only water source.`
-    : `${fmtNum(total, 0)} mm fell against ${fmtNum(etcTotal, 0)} mm of crop water use, so irrigation covered the rest.`;
+  const share = usedTotal != null && usedTotal > 0 && irrigated != null ? Math.round((irrigated / usedTotal) * 100) : null;
+  const sentence =
+    usedTotal == null
+      ? `${fmtNum(rainTotal, 1)} mm of rain in the last ${past.length} days.`
+      : rainTotal < 0.5
+        ? `No rain in the last ${past.length} days: irrigation supplied all ${fmtNum(usedTotal, 0)} mm the ${cropName} used.`
+        : `${fmtNum(rainTotal, rainTotal < 10 ? 1 : 0)} mm of rain against ${fmtNum(usedTotal, 0)} mm of crop water use, so irrigation supplied about ${share}%.`;
+  const gaps = usedTotal != null && missing > 0 ? ` Crop water use is missing for ${plural(missing, "day")}, so the totals run low.` : "";
+  const outlook = future.length ? ` Next ${future.length} days: the crop needs about ${fmtNum(nextUse, 0)} mm${nextRain >= 0.5 ? `, rain may bring ${fmtNum(nextRain, 1)} mm` : " and no rain is expected"}.` : "";
+  const xs = xTicks(rows.map((r) => r.date));
+  const xFormat = (d: string) => (d === today ? "Today" : formatX(d));
 
   return (
     <div>
       <Headline
-        value={fmtNum(total, total < 10 ? 1 : 0)}
-        unit={`mm in ${past.length} days`}
-        label={lastRain ? <span className="text-muted-foreground">Last rain {formatShortDay(lastRain.date)}</span> : undefined}
-        sentence={sentence}
+        value={fmtNum(usedTotal, 0)}
+        unit={`mm used in ${past.length} days`}
+        label={<span className="text-muted-foreground">{`Rain ${fmtNum(rainTotal, rainTotal < 10 ? 1 : 0)} mm${lastRain ? `, last on ${formatShortDay(lastRain.date)}` : ""}`}</span>}
+        sentence={sentence + gaps + outlook}
       />
-      <ChartSummary>{sentence}</ChartSummary>
-      {dry ? (
-        <>
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">Crop water use vs rain, cumulative (mm)</p>
-          <div style={{ height: Math.max(140, p.height - 70) }} role="img" aria-label={`Cumulative crop water use and rain at ${bundle.farm.name}`}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={past} margin={{ top: 8, right: rightMargin(p.narrow), bottom: 0, left: 0 }}>
-                <CartesianGrid vertical={false} stroke={C.grid} />
-                <XAxis dataKey="date" ticks={xTicks(past.map((r) => r.date))} tickFormatter={(d: string) => (d === today ? "Today" : formatX(d))} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: C.grid }} height={28} />
-                <YAxis domain={cumScale.domain} ticks={cumScale.ticks} width={40} tick={AXIS_TICK} tickLine={false} axisLine={false} />
-                <Line dataKey="cumEtc" stroke={C.mean} strokeWidth={2.25} dot={false} connectNulls animationDuration={300} />
-                <Line dataKey="cumRain" stroke={C.rain} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-                <MarginLabels
-                  labels={[
-                    ...(etcTotal != null ? [{ y: etcTotal, text: `Crop ${fmtNum(etcTotal, 0)} mm`, tone: "muted" as const }] : []),
-                    { y: 0, text: "Rain 0 mm", tone: "muted" as const },
-                  ]}
-                />
-                <Tooltip
-                  cursor={{ stroke: "oklch(0.3 0.02 120 / 0.35)", strokeWidth: 1 }}
-                  content={(props) => {
-                    const t = props as TooltipContentProps<number, string>;
-                    const row = t.active ? (t.payload?.[0]?.payload as WeatherRow | undefined) : undefined;
-                    if (!row) return null;
-                    return (
-                      <TooltipShell title={formatDay(row.date)}>
-                        <TooltipRow label="Crop water use so far" value={`${fmtNum(row.cumEtc, 0)} mm`} color={C.mean} />
-                        <TooltipRow label="Rain so far" value={`${fmtNum(row.cumRain, 0)} mm`} color={C.rain} />
-                      </TooltipShell>
-                    );
-                  }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <Legend
-            className="mt-2 mb-4"
-            items={[
-              { kind: "line", color: C.mean, label: `Crop water use (ETc), ${cropName}` },
-              { kind: "line", color: C.rain, label: "Rain" },
-            ]}
-          />
-          {future.length ? <ForecastStrip rows={future} /> : null}
-        </>
-      ) : (
-        <>
-          <div style={{ height: p.height }} role="img" aria-label={`Daily rain at ${bundle.farm.name}, last ${past.length} days and the forecast`}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={rows} margin={{ top: 18, right: rightMargin(p.narrow), bottom: 0, left: 0 }}>
-                <HatchDefs id="hatch-rain" color={C.rain} />
-                <CartesianGrid vertical={false} stroke={C.grid} />
-                <XAxis dataKey="date" ticks={xTicks(rows.map((r) => r.date))} tickFormatter={formatX} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: C.grid }} height={28} />
-                <YAxis domain={barScale.domain} ticks={barScale.ticks} width={36} tick={AXIS_TICK} tickLine={false} axisLine={false} />
-                <ReferenceLine x={today} stroke={C.today} strokeWidth={1.25} label={{ value: "Today", position: "top", fontSize: 12, fontWeight: 600, fill: C.today }} />
-                <Bar dataKey="rain" fill={C.rain} radius={[3, 3, 0, 0]} maxBarSize={14} isAnimationActive={false} />
-                <Bar dataKey="rainForecast" fill="url(#hatch-rain)" stroke={C.rain} strokeOpacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={14} isAnimationActive={false}>
-                  {rows.map((r) => (
-                    <Cell key={r.date} />
-                  ))}
-                  <LabelList dataKey="rainProb" position="top" fontSize={12} fill={C.axis} formatter={(v: unknown) => (typeof v === "number" && v >= 20 ? `${v}%` : "")} />
-                </Bar>
-                <Tooltip
-                  cursor={{ fill: "oklch(0.3 0.02 120 / 0.06)" }}
-                  content={(props) => {
-                    const t = props as TooltipContentProps<number, string>;
-                    const row = t.active ? (t.payload?.[0]?.payload as WeatherRow | undefined) : undefined;
-                    if (!row) return null;
-                    return (
-                      <TooltipShell title={`${formatDay(row.date)}${row.forecast ? " · forecast" : ""}`}>
-                        <TooltipRow label="Rain" value={`${fmtNum(row.forecast ? row.rainForecast : row.rain, 1)} mm`} color={C.rain} kind={row.forecast ? "hatch" : "bar"} />
-                        {row.forecast && row.rainProb != null ? <TooltipRow label="Chance of rain" value={`${fmtNum(row.rainProb, 0)}%`} muted /> : null}
-                      </TooltipShell>
-                    );
-                  }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <Legend
-            className="mt-2"
-            items={[
-              { kind: "bar", color: C.rain, label: "Daily rain" },
-              { kind: "hatch", color: C.rain, label: "Forecast (label = chance of rain)" },
-            ]}
-          />
-        </>
-      )}
+      <ChartSummary>{sentence + gaps + outlook}</ChartSummary>
+
+      <p className="mb-1 text-xs font-semibold text-muted-foreground">Running total, mm</p>
+      <div style={{ height: Math.max(150, p.height - 96) }} role="img" aria-label={`Cumulative crop water use and rain at ${bundle.farm.name}. ${sentence}`}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ top: 8, right: rightMargin(p.narrow), bottom: 8, left: 0 }} syncId={syncId}>
+            <HatchDefs id="hatch-water" color={USE} />
+            <CartesianGrid vertical={false} stroke={C.grid} />
+            <XAxis dataKey="date" ticks={xs} tickFormatter={xFormat} hide height={0} />
+            <YAxis domain={cumScale.domain} ticks={cumScale.ticks} width={40} tick={AXIS_TICK} tickLine={false} axisLine={false} />
+            <Area dataKey="gap" stroke="none" fill={GAP} fillOpacity={1} isAnimationActive={false} connectNulls activeDot={false} />
+            <Area dataKey="gapF" stroke="none" fill="url(#hatch-water)" fillOpacity={0.6} isAnimationActive={false} connectNulls activeDot={false} />
+            <ReferenceLine x={today} stroke={C.today} strokeWidth={1.25} label={{ value: "Today", position: "insideTopLeft", fontSize: 12, fontWeight: 600, fill: C.today }} />
+            <Line dataKey="cumUse" stroke={USE} strokeWidth={2.25} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }} connectNulls isAnimationActive={false} />
+            <Line dataKey="cumUseF" stroke={USE} strokeWidth={2} strokeDasharray="4 4" dot={false} activeDot={false} connectNulls isAnimationActive={false} />
+            <Line dataKey="cumRain" stroke={C.rain} strokeWidth={2.25} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }} connectNulls isAnimationActive={false} />
+            <Line dataKey="cumRainF" stroke={C.rain} strokeWidth={2} strokeDasharray="4 4" dot={false} activeDot={false} connectNulls isAnimationActive={false} />
+            <MarginLabels
+              labels={[
+                ...(usedTotal != null ? [{ y: usedTotal, text: p.narrow ? `Used ${fmtNum(usedTotal, 0)}` : `Crop ${fmtNum(usedTotal, 0)} mm`, tone: "muted" as const }] : []),
+                ...(usedTotal != null && irrigated != null && irrigated > 8
+                  ? [{ y: rainTotal + irrigated / 2, text: p.narrow ? "Irrigation" : `Irrigation ${fmtNum(irrigated, 0)}`, tone: "muted" as const }]
+                  : []),
+                { y: rainTotal, text: p.narrow ? `Rain ${fmtNum(rainTotal, 0)}` : `Rain ${fmtNum(rainTotal, rainTotal < 10 ? 1 : 0)} mm`, tone: "muted" as const },
+              ]}
+            />
+            <Tooltip
+              cursor={{ stroke: "oklch(0.3 0.02 120 / 0.35)", strokeWidth: 1 }}
+              wrapperStyle={{ zIndex: 20 }}
+              content={(props) => <WaterTooltip {...(props as TooltipContentProps<number, string>)} />}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <p className="mt-2 mb-1 text-xs font-semibold text-muted-foreground">Each day, mm · rain up, crop use down</p>
+      <div style={{ height: 96 }} role="img" aria-label={`Daily rain and crop water use at ${bundle.farm.name}`}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ top: 4, right: rightMargin(p.narrow), bottom: 0, left: 0 }} stackOffset="sign" syncId={syncId}>
+            <HatchDefs id="hatch-rain" color={C.rain} />
+            <HatchDefs id="hatch-use" color={USE} />
+            <CartesianGrid vertical={false} stroke={C.grid} />
+            <XAxis dataKey="date" ticks={xs} tickFormatter={xFormat} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: C.grid }} height={24} />
+            <YAxis
+              domain={[-dailyTop, dailyTop]}
+              ticks={[-dailyTop, 0, dailyTop]}
+              width={40}
+              tick={AXIS_TICK}
+              tickFormatter={(v: number) => tickFormatter(0)(Math.abs(v))}
+              tickLine={false}
+              axisLine={false}
+            />
+            <ReferenceLine y={0} stroke={C.axis} strokeOpacity={0.4} />
+            <ReferenceLine x={today} stroke={C.today} strokeWidth={1.25} />
+            <Bar dataKey="rainUp" stackId="d" fill={C.rain} radius={[2, 2, 0, 0]} maxBarSize={12} isAnimationActive={false} />
+            <Bar dataKey="useDown" stackId="d" fill={USE} fillOpacity={0.75} radius={[0, 0, 2, 2]} maxBarSize={12} isAnimationActive={false} />
+            <Bar dataKey="rainUpF" stackId="d" fill="url(#hatch-rain)" stroke={C.rain} strokeOpacity={0.6} maxBarSize={12} isAnimationActive={false}>
+              <LabelList dataKey="rainProb" position="top" fontSize={12} fill={C.axis} formatter={(v: unknown) => (typeof v === "number" && v >= 20 ? `${v}%` : "")} />
+            </Bar>
+            <Bar dataKey="useDownF" stackId="d" fill="url(#hatch-use)" stroke={USE} strokeOpacity={0.6} maxBarSize={12} isAnimationActive={false} />
+            <MarginLabels labels={[{ y: dailyTop * 0.55, text: "Rain", tone: "muted" }, { y: -dailyTop * 0.55, text: p.narrow ? "Use" : "Crop use", tone: "muted" }]} />
+            {/* The chart above shows the tooltip for both (synced); this one only marks the day. */}
+            <Tooltip cursor={{ fill: "oklch(0.3 0.02 120 / 0.06)" }} content={() => null} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      <Legend
+        className="mt-2"
+        items={[
+          { kind: "line", color: USE, label: `Crop water use (ETc), ${cropName}` },
+          { kind: "line", color: C.rain, label: "Rain" },
+          { kind: "band", color: "oklch(0.62 0.13 62)", label: "Irrigation need (use − rain)" },
+          ...(future.length ? [{ kind: "hatch" as const, color: USE, label: "Forecast (bar label = chance of rain)" }] : []),
+        ]}
+      />
       <PanelFooter
         stats={
           <>
+            {share != null ? <Stat label="From irrigation" value={`${share}%`} /> : null}
             {future.length ? (
               <>
-                <Stat label={`Next ${future.length} days`} value={`${fmtNum(nextTotal, nextTotal < 10 ? 1 : 0)} mm`} />
-                <Stat label="Highest chance" value={`${fmtNum(maxProb, 0)}%`} />
+                <Stat label={`Crop needs, next ${future.length} days`} value={`${fmtNum(nextUse, 0)} mm`} />
+                <Stat label="Highest rain chance" value={`${fmtNum(maxProb, 0)}%`} />
               </>
             ) : (
-              <Stat label="Rainy days" value={`${past.filter((r) => (r.rain ?? 0) >= 0.5).length} of ${past.length}`} />
+              <Stat label="Rainy days" value={`${past.filter((r) => (r.rainUp ?? 0) >= 0.5).length} of ${past.length}`} />
             )}
           </>
         }
-        source="Open-Meteo · same across the field"
-        askHref={p.askHref(`With this rain outlook, how should I plan irrigation at ${bundle.farm.name} this week?`)}
+        source="Open-Meteo rain and ET₀ · FAO-56 crop water use"
+        askHref={p.askHref(`With this water balance and rain outlook, how should I plan irrigation at ${bundle.farm.name} this week?`)}
       />
     </div>
+  );
+}
+
+function WaterTooltip(t: TooltipContentProps<number, string>) {
+  const row = t.active ? (t.payload?.[0]?.payload as WaterRow | undefined) : undefined;
+  if (!row) return null;
+  const use = -(row.forecast ? (row.useDownF ?? NaN) : (row.useDown ?? NaN));
+  const rain = row.forecast ? row.rainUpF : row.rainUp;
+  const cumUse = row.forecast ? row.cumUseF : row.cumUse;
+  const cumRain = row.forecast ? row.cumRainF : row.cumRain;
+  return (
+    <TooltipShell title={`${formatDay(row.date)}${row.forecast ? " · forecast" : ""}`}>
+      <TooltipRow label={row.forecast ? "Crop use (estimate)" : "Crop use"} value={`${fmtNum(use, 1)} mm`} color={USE} kind={row.forecast ? "hatch" : "bar"} />
+      <TooltipRow label="Rain" value={`${fmtNum(rain, 1)} mm${row.forecast && row.rainProb != null ? ` · ${fmtNum(row.rainProb, 0)}%` : ""}`} color={C.rain} kind={row.forecast ? "hatch" : "bar"} />
+      {cumUse != null ? <TooltipRow label="Crop use so far" value={`${fmtNum(cumUse, 0)} mm`} muted /> : null}
+      {cumUse != null && cumRain != null ? <TooltipRow label="From irrigation so far" value={`${fmtNum(Math.max(0, cumUse - cumRain), 0)} mm`} muted /> : null}
+    </TooltipShell>
   );
 }

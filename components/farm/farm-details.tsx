@@ -3,16 +3,18 @@
 /**
  * A farm's workspace (`/dashboard/farm/[id]`): everything about one farm, in tabs under a stable
  * header. Today (headline numbers, the field map beside what to do, the soil & weather charts and
- * the next 12 hours) · Advice (the full assessment) · Trends (charts at full size) · Probes (the
+ * the next 12 hours) · Advice (the full assessment) · AI analysis (the fine-tuned model's answer and
+ * its inputs) · Trends (charts at full size) · Probes (the
  * daily table per probe, or every reading) · Method. Tab, chart and view live in the URL.
  */
 import { Fragment, useEffect, useState } from "react";
 import { Next12hCard } from "@/components/charts/next-12h-card";
 import { SoilWeatherCard } from "@/components/charts/soil-weather-card";
-import { RiskBadge } from "@/components/dashboard/risk-badge";
+import { HealthDot, RiskBadge } from "@/components/dashboard/risk-badge";
 import { Segmented } from "@/components/dashboard/segmented";
 import { GetStarted } from "@/components/devices/get-started";
 import { AdvicePanel } from "@/components/farm/advice-panel";
+import { AiAnalysisPanel } from "@/components/farm/ai-analysis-panel";
 import { MethodPanel } from "@/components/farm/method-panel";
 import { ProbesPanel } from "@/components/farm/probes-panel";
 import { ReadingsExplorer } from "@/components/farm/readings-explorer";
@@ -21,12 +23,14 @@ import { OverviewMap } from "@/components/overview/overview-map";
 import { WhatToDo } from "@/components/overview/what-to-do";
 import { useShell, useShellFarm } from "@/components/shell/shell-context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDoneActions } from "@/hooks/use-done-actions";
 import { useLiveDashboard } from "@/hooks/use-live-dashboard";
 import { GROWTH_STAGE_LABEL } from "@/lib/agronomy";
 import { CROPS } from "@/lib/agronomy-tables";
 import { lastDataIndex } from "@/lib/ai/analysis";
 import { defaultChartTab, layerForTab, nutrientSummary, tabForLayer, type ChartTab } from "@/lib/charts";
-import { sortedActions } from "@/lib/dashboard";
+import { daysSinceReading, QUIET_DAYS, sortedActions } from "@/lib/dashboard";
+import { actionKey } from "@/lib/done-actions";
 import { formatShortDay, plural } from "@/lib/format";
 import type { MetricKey } from "@/lib/metrics";
 import type { QatarLocation } from "@/lib/qatar/location";
@@ -60,6 +64,7 @@ export function FarmDetails({
   const { farm, insight } = bundle;
   useShellFarm(farm.id);
 
+  const { done } = useDoneActions();
   const [tab, setTab] = useState<FarmTab>(initialTab);
   const [view, setView] = useState<ProbesView>(initialView);
   const [chartChoice, setChartChoice] = useState<ChartTab | null>(initialChart ?? (initialLayer ? tabForLayer(initialLayer) : null));
@@ -143,7 +148,9 @@ export function FarmDetails({
     : shownIndex < last
       ? [{ index: shownIndex, label: formatShortDay(dates[shownIndex]) }]
       : [];
-  const actionCount = sortedActions(insight).length;
+  const actionCount = sortedActions(insight).filter((r) => !done.has(actionKey(farm.id, r.title))).length;
+  // Probes that stopped reporting: say so up front, since every number below is from that day.
+  const quietFor = daysSinceReading(bundle) ?? 0;
 
   return (
     <div className="px-4 pt-5 pb-10 sm:px-6 lg:px-8 lg:pt-6">
@@ -161,6 +168,12 @@ export function FarmDetails({
               </span>
             </Fragment>
           ))}
+          {quietFor >= QUIET_DAYS ? (
+            <span className="ml-2 inline-flex items-center gap-1.5 font-semibold whitespace-nowrap text-risk-medium-ink">
+              <HealthDot tone="warn" className="ring-0" />
+              No readings since {formatShortDay(dates[latest])}
+            </span>
+          ) : null}
         </p>
       </div>
 
@@ -235,6 +248,10 @@ export function FarmDetails({
 
         <TabsContent value="advice" className="yai-enter">
           <AdvicePanel bundle={bundle} location={location} />
+        </TabsContent>
+
+        <TabsContent value="ai" className="yai-enter">
+          <AiAnalysisPanel farmId={farm.id} />
         </TabsContent>
 
         <TabsContent value="trends" className="yai-enter">

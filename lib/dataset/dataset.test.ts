@@ -282,7 +282,7 @@ describe("website sections (lib/ai/model-output.ts)", () => {
   });
 
   it("turns a Q1 answer into the land planner's research panel", () => {
-    const research = toLandResearch(land.output, { model: "yield-ai-4b", at: "2026-06-15T05:00:00Z" });
+    const research = toLandResearch(land.output, { model: "harvestar-ai-4b", at: "2026-06-15T05:00:00Z" });
     expect(research.headline).toBe(land.output.summary);
     expect(research.caveats).toEqual(land.output.data_gaps);
     expect(research.highlights.length).toBe(land.output.insights.length + land.output.warnings.length);

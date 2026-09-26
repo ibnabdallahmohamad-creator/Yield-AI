@@ -33,6 +33,8 @@ export interface MapFarm {
   samples: ProbeSample[];
   /** Compare mode: change since the "then" day. */
   delta?: Delta | null;
+  /** The metric's limit for this farm (crop salinity threshold, irrigation trigger), drawn as a red isoline. */
+  limit?: { value: number; label: string } | null;
 }
 
 export interface FarmMapProps {
@@ -307,6 +309,7 @@ const FieldLayer = memo(function FieldLayer({
           samples={farm.samples}
           metric={metric}
           uniformValue={metric.spatial ? undefined : farm.value}
+          limit={metric.spatial ? (farm.limit?.value ?? null) : null}
         />
       ) : null}
       {selected ? (

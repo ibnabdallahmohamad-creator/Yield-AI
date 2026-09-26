@@ -23,6 +23,26 @@ test.describe("plan", () => {
     expect(errors).toEqual([]);
   });
 
+  test("ticking an action off moves it to Done and lowers the Plan badge", async ({ page }) => {
+    const week = page.getByRole("region", { name: "This week" });
+    const badge = page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /^Plan/ });
+    const count = async () => Number((await badge.innerText()).match(/(\d+)\s*$/)?.[1] ?? 0);
+    const before = await count();
+    const first = week.getByRole("checkbox").first();
+    await first.click();
+    await expect(first).toHaveAttribute("aria-checked", "true");
+    await expect.poll(count).toBe(before - 1);
+    await expect(page.getByText(/ · 1 done/)).toBeVisible();
+
+    // Next visit: the ticked action waits under Done, and can be unticked there.
+    await page.reload();
+    const done = week.getByRole("button", { name: "Done · 1" });
+    await done.click();
+    await week.getByRole("checkbox", { checked: true }).click();
+    await expect(done).toBeHidden();
+    await expect.poll(count).toBe(before);
+  });
+
   test("Why opens the reasoning, the method and the chart behind an action", async ({ page }) => {
     const first = page.getByRole("region", { name: "This week" }).getByRole("listitem").first();
     const why = first.getByRole("button", { name: "Why" });

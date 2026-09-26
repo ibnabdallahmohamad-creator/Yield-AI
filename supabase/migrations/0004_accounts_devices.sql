@@ -1,4 +1,4 @@
--- Yield AI — real accounts own their farms, and ESP32 devices send readings over Wi-Fi
+-- Harvestar AI — real accounts own their farms, and ESP32 devices send readings over Wi-Fi
 -- Apply after 0003_insight_sections.sql (`npx supabase db push` or the SQL editor). Safe to re-run.
 --
 -- * farms.owner_id: the account that created the farm. NULL = the shared demo farms from `npm run seed`
@@ -7,6 +7,29 @@
 --   that it gets by claiming a short pairing code (POST /api/device/pair).
 -- * sensor_readings is unique per farm + probe + time (probe ids like "ESP32-1" repeat across farms).
 -- * reading_series(): readings bucketed in the database for the charts (GET /api/readings/series).
+
+-- ---------------------------------------------------------------------------
+-- Clean up an earlier draft of this schema (a `devices` table without pairing codes, per-user
+-- settings, a weather cache table and three functions), so the objects below are created as the
+-- app expects them. Nothing here touches farms or readings.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.devices') is not null and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'devices' and column_name = 'pairing_code'
+  ) then
+    drop table public.devices cascade;
+  end if;
+end $$;
+drop table if exists public.user_settings cascade;
+drop table if exists public.app_cache cascade;
+drop function if exists public.readings_series(text, timestamptz, timestamptz, integer);
+drop function if exists public.device_for_key(text);
+drop function if exists public.device_report(text, jsonb, jsonb);
+drop policy if exists "Owners manage their farms" on public.farms;
+drop policy if exists "Owners read their readings" on public.sensor_readings;
+drop policy if exists "Owners read their insights" on public.ai_insights;
 
 -- ---------------------------------------------------------------------------
 -- Farm ownership
@@ -58,7 +81,8 @@ alter table public.sensor_readings drop constraint if exists sensor_readings_sen
 do $$
 begin
   if not exists (
-    select 1 from pg_constraint where conname = 'sensor_readings_farm_sensor_time_key'
+    select 1 from pg_constraint
+    where conname in ('sensor_readings_farm_sensor_time_key', 'sensor_readings_farm_sensor_timestamp_key')
   ) then
     alter table public.sensor_readings
       add constraint sensor_readings_farm_sensor_time_key unique (farm_id, sensor_id, "timestamp");

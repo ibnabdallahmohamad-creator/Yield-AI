@@ -115,11 +115,11 @@ describe("a real account's ESP32, end to end (local store)", () => {
   let dir: string;
   const grower: AppUser = { id: "grower-1", email: "grower@example.com", name: "Grower", provider: "local" };
   const neighbour: AppUser = { id: "grower-2", email: "other@example.com", name: "Other", provider: "local" };
-  const demo: AppUser = { id: "local-demo", email: "demo@yield-ai.app", name: "Demo", provider: "local" };
+  const demo: AppUser = { id: "local-demo", email: "demo@harvestar.ai", name: "Demo", provider: "local" };
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "yai-accounts-"));
-    vi.stubEnv("YIELD_DATA_DIR", dir);
+    vi.stubEnv("HARVESTAR_DATA_DIR", dir);
     resetLocalAccountCache();
   });
 

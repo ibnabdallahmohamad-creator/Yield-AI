@@ -4,7 +4,7 @@ import Link from "next/link";
 import { HealthDot, RiskBadge } from "@/components/dashboard/risk-badge";
 import { GetStarted } from "@/components/devices/get-started";
 import { IrrigationCard } from "@/components/home/irrigation-card";
-import { CropSuggestion, MarketChip, WeeklyActions } from "@/components/insights/farm-advice";
+import { ActionsLeft, CropSuggestion, MarketChip, WeeklyActions } from "@/components/insights/farm-advice";
 import { FarmFilter, HowItWorks, ReportFarm } from "@/components/insights/insights-controls";
 import { RiskSparkline } from "@/components/insights/risk-sparkline";
 import { CROPS } from "@/lib/agronomy-tables";
@@ -56,15 +56,14 @@ export default async function PlanPage({ searchParams }: PageProps<"/dashboard/i
   }
 
   const actions = weeklyActions(scope);
-  const farmsWithActions = new Set(actions.map((a) => a.farm.id)).size;
   const rows = scope.map((b) => farmRow(b, data.dates));
   const updated = updatedLabel(scope);
   const meta =
-    planView === "season"
-      ? `Which crop to plant next, at ${selected ? `${selected.farm.name}'s` : "each farm's"} current salinity`
-      : selected
-        ? `${plural(actions.length, "action")} for ${selected.farm.name} this week`
-        : `${plural(actions.length, "action")} across ${plural(farmsWithActions, "farm")} this week`;
+    planView === "season" ? (
+      `Which crop to plant next, at ${selected ? `${selected.farm.name}'s` : "each farm's"} current salinity`
+    ) : (
+      <ActionsLeft actions={actions} farmName={selected?.farm.name} />
+    );
 
   return (
     <div className="yai-enter px-4 pt-5 pb-10 sm:px-6 lg:px-8 lg:pt-6">

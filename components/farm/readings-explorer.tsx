@@ -15,6 +15,8 @@ import {
   ComposedChart,
   Line,
   ReferenceArea,
+  ReferenceDot,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -24,6 +26,7 @@ import {
 import { AXIS_TICK, C, Legend, niceScale, tickFormatter, TooltipRow, TooltipShell } from "@/components/charts/chart-kit";
 import { useOptionalShell } from "@/components/shell/shell-context";
 import { Button } from "@/components/ui/button";
+import { NUTRIENT_GUIDE } from "@/lib/crop-guides";
 import { formatShortDay, formatTime, fmtNum, qatarDay, relativeTime } from "@/lib/format";
 import { SERIES_METRIC_DEFS, SERIES_METRICS, SERIES_RANGES, type ReadingSeries, type SeriesMetric } from "@/lib/readings/series";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,16 @@ import { cn } from "@/lib/utils";
 const PROBE_PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
 /** A metric's smallest y-span, so sensor noise doesn't fill the chart. */
 const MIN_SPAN: Record<SeriesMetric, number> = { moisture: 4, temperature: 2, ec: 0.2, ph: 0.4, n: 10, p: 5, k: 10, air_temp: 2, air_humidity: 10 };
+
+/** A reference range behind the chart, where one holds whatever the crop (nutrients, pH). */
+function targetBand(metric: SeriesMetric): { y1: number; y2: number; label: string; legend: string } | null {
+  if (metric === "n" || metric === "p" || metric === "k") return { y1: NUTRIENT_GUIDE[metric].low, y2: NUTRIENT_GUIDE[metric].high, label: "Adequate", legend: "Indicative adequate range" };
+  if (metric === "ph") return { y1: 6.6, y2: 7.4, label: "Neutral", legend: "Neutral pH (6.6–7.4)" };
+  return null;
+}
+
+const HIGH = "oklch(0.55 0.15 40)";
+const HALO = { stroke: "var(--card)", strokeWidth: 3, paintOrder: "stroke" } as const;
 
 type RangeKey = (typeof SERIES_RANGES)[number]["key"] | "all";
 const RANGES: Array<{ key: RangeKey; label: string }> = [...SERIES_RANGES.map((r) => ({ key: r.key, label: r.label })), { key: "all", label: "All" }];
@@ -244,6 +257,19 @@ export function ReadingsExplorer({ farmId, farmName, probeIds }: { farmId: strin
   }, [series, farmName]);
 
   const summary = data?.summary ?? null;
+  const band = targetBand(metric);
+  // Off the chart (pH 8 soil against a neutral 6.6–7.4): the legend says which way instead.
+  const bandSide = !band ? null : band.y2 <= scale.domain[0] ? "below" : band.y1 >= scale.domain[1] ? "above" : null;
+  // The window's highest and lowest single readings, labelled on the chart (the label turns inward near an edge).
+  const extremes =
+    summary?.min && summary.max && summary.max.value > summary.min.value
+      ? (["max", "min"] as const).map((kind) => {
+          const e = summary[kind]!;
+          const f = (e.t - fromMs) / Math.max(1, toMs - fromMs);
+          const position = f > 0.85 ? "left" : f < 0.15 ? "right" : kind === "max" ? "top" : "bottom";
+          return { kind, ...e, position } as const;
+        })
+      : [];
   const empty = series != null && !data;
   const neverAny = empty && series.readings === 0 && range === "all" && !zoom;
 
@@ -401,7 +427,27 @@ export function ReadingsExplorer({ farmId, farmName, probeIds }: { farmId: strin
                   tickLine={false}
                   axisLine={false}
                 />
+                {band ? (
+                  <ReferenceArea
+                    y1={band.y1}
+                    y2={band.y2}
+                    fill={C.adequate}
+                    fillOpacity={0.12}
+                    stroke="none"
+                    ifOverflow="hidden"
+                    label={{ value: band.label, position: "insideTopLeft", fontSize: 12, fill: "oklch(0.45 0.1 152)" }}
+                  />
+                ) : null}
                 {!byProbe ? <Area dataKey="band" stroke="none" fill={C.range} fillOpacity={0.22} isAnimationActive={false} activeDot={false} /> : null}
+                {summary?.mean != null && rows.length > 2 ? (
+                  <ReferenceLine
+                    y={summary.mean}
+                    stroke={C.axis}
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    label={{ value: `Average ${fmt(summary.mean)}`, position: "insideBottomRight", fontSize: 12, fill: C.axis, ...HALO }}
+                  />
+                ) : null}
                 {byProbe
                   ? shownProbes.map((s) => {
                       const slot = probeSlot.get(s) ?? 0;
@@ -431,6 +477,21 @@ export function ReadingsExplorer({ farmId, farmName, probeIds }: { farmId: strin
                     isAnimationActive={false}
                   />
                 ) : null}
+                {!drag
+                  ? extremes.map((e) => (
+                      <ReferenceDot
+                        key={e.kind}
+                        x={e.t}
+                        y={e.value}
+                        r={4}
+                        fill="var(--card)"
+                        stroke={e.kind === "max" ? HIGH : C.rain}
+                        strokeWidth={2}
+                        ifOverflow="discard"
+                        label={{ value: `${e.kind === "max" ? "High" : "Low"} ${fmt(e.value)}`, position: e.position, offset: 8, fontSize: 12, fontWeight: 600, fill: e.kind === "max" ? HIGH : C.rain, ...HALO }}
+                      />
+                    ))
+                  : null}
                 {drag && drag.a !== drag.b ? <ReferenceArea x1={Math.min(drag.a, drag.b)} x2={Math.max(drag.a, drag.b)} fill={C.mean} fillOpacity={0.1} stroke="none" /> : null}
                 <Tooltip
                   cursor={{ stroke: "oklch(0.3 0.02 120 / 0.35)", strokeWidth: 1 }}
@@ -481,6 +542,8 @@ export function ReadingsExplorer({ farmId, farmName, probeIds }: { farmId: strin
               items={[
                 { kind: "line", color: C.mean, label: series.sensors.length === 1 ? "Reading" : "Farm average" },
                 ...(series.sensors.length > 1 || !series.raw ? [{ kind: "band" as const, color: C.range, label: series.sensors.length > 1 ? "Lowest–highest probe" : "Lowest–highest" }] : []),
+                ...(summary?.mean != null && rows.length > 2 ? [{ kind: "dash" as const, color: C.axis, label: "Window average" }] : []),
+                ...(band ? [{ kind: "band" as const, color: C.adequate, label: bandSide ? `${band.legend}, ${bandSide} this chart` : band.legend }] : []),
               ]}
             />
           )}

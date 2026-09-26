@@ -1,18 +1,19 @@
 /**
  * Local accounts: used when Supabase Auth is not configured or unreachable, so sign-in never
- * blocks the demo. Stored in `.data/users.json` (git-ignored) with scrypt password hashes;
- * falls back to memory on read-only file systems. The demo account always exists.
+ * blocks the demo. Stored in `$HARVESTAR_DATA_DIR/users.json` (default `.data/`, git-ignored) with scrypt password hashes;
+ * falls back to memory on read-only file systems. The demo and Tester accounts always exist.
  */
 import "server-only";
 import { randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { DEMO_ACCOUNT } from "../env";
+import { DEMO_ACCOUNT, TESTER_ACCOUNT } from "../env";
+import { dataRoot } from "../storage/files";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 const KEY_LENGTH = 64;
-const STORE_FILE = path.join(process.cwd(), ".data", "users.json");
+const storeFile = () => path.join(dataRoot(), "users.json");
 
 export interface LocalUser {
   id: string;
@@ -23,7 +24,7 @@ export interface LocalUser {
 }
 
 let users: LocalUser[] | null = null;
-let demoUser: LocalUser | null = null;
+let builtIn: LocalUser[] | null = null;
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
@@ -41,23 +42,25 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
-async function getDemoUser(): Promise<LocalUser> {
-  if (!demoUser) {
-    demoUser = {
-      id: "local-demo",
-      email: normalizeEmail(DEMO_ACCOUNT.email),
-      name: DEMO_ACCOUNT.name,
-      passwordHash: await hashPassword(DEMO_ACCOUNT.password),
+/** Accounts that exist without Supabase: the shared demo account and the Tester account. */
+async function getBuiltInUsers(): Promise<LocalUser[]> {
+  if (!builtIn) {
+    const make = async (id: string, account: { email: string; name: string; password: string }): Promise<LocalUser> => ({
+      id,
+      email: normalizeEmail(account.email),
+      name: account.name,
+      passwordHash: await hashPassword(account.password),
       createdAt: new Date(0).toISOString(),
-    };
+    });
+    builtIn = [await make("local-demo", DEMO_ACCOUNT), await make("local-tester", TESTER_ACCOUNT)];
   }
-  return demoUser;
+  return builtIn;
 }
 
 async function load(): Promise<LocalUser[]> {
   if (users) return users;
   try {
-    const parsed = JSON.parse(await readFile(STORE_FILE, "utf8")) as unknown;
+    const parsed = JSON.parse(await readFile(storeFile(), "utf8")) as unknown;
     users = Array.isArray(parsed) ? (parsed as LocalUser[]) : [];
   } catch {
     users = [];
@@ -67,8 +70,8 @@ async function load(): Promise<LocalUser[]> {
 
 async function persist(list: LocalUser[]): Promise<void> {
   try {
-    await mkdir(path.dirname(STORE_FILE), { recursive: true });
-    await writeFile(STORE_FILE, JSON.stringify(list, null, 2), "utf8");
+    await mkdir(path.dirname(storeFile()), { recursive: true });
+    await writeFile(storeFile(), JSON.stringify(list, null, 2), "utf8");
   } catch (error) {
     console.warn("[auth] Could not persist local users (memory only):", error instanceof Error ? error.message : error);
   }
@@ -76,8 +79,8 @@ async function persist(list: LocalUser[]): Promise<void> {
 
 export async function findLocalUser(email: string): Promise<LocalUser | null> {
   const target = normalizeEmail(email);
-  const demo = await getDemoUser();
-  if (demo.email === target) return demo;
+  const known = (await getBuiltInUsers()).find((u) => u.email === target);
+  if (known) return known;
   return (await load()).find((u) => u.email === target) ?? null;
 }
 

@@ -7,7 +7,9 @@ import {
   type Conversation,
   type ConversationMessage,
 } from "@/lib/ai/contract";
+import { analyzeFarm } from "@/lib/ai/live-analysis";
 import { askLlm, llmAvailable } from "@/lib/ai/llm";
+import { modelConfigured } from "@/lib/ai/model-client";
 import { answerOffline } from "@/lib/ai/offline";
 import { aiServiceConfigured, askAiService } from "@/lib/ai/service";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -27,10 +29,14 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 /**
  * POST /api/chat — { farm_id, question, date?, history?, conversation_id?, new_conversation?,
  * insight_id?, regenerate? } → ChatResponse.
- * Answer chain: the team's AI service → Claude (LLM fallback) → offline agronomy engine.
+ * Answer chain: the fine-tuned Harvestar AI model (AI_MODEL_URL, its JSON answer is split into sections
+ * by the chat) → the team's AI service → Claude (LLM fallback) → offline agronomy engine.
  * With `conversation_id` or `new_conversation` the exchange is saved and history comes from storage;
  * without them the chat is stateless. A storage failure never blocks the answer.
  */
+/** The fine-tuned model may take up to ~55 s. */
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Please sign in to use the assistant." }, { status: 401 });
@@ -89,12 +95,24 @@ export async function POST(request: Request) {
   let source: ChatAnswerSource = "offline";
   let model: string | null = null;
 
-  if (aiServiceConfigured()) {
+  if (modelConfigured()) {
+    try {
+      const res = await analyzeFarm(user, farm_id, question);
+      if (res?.source === "model") {
+        answer = JSON.stringify(res.output);
+        source = "ai-service";
+        model = res.model;
+      }
+    } catch (error) {
+      console.warn("[chat] Harvestar AI model failed, falling back:", error instanceof Error ? error.message : error);
+    }
+  }
+  if (!answer && aiServiceConfigured()) {
     try {
       const res = await askAiService({ farm_id, question, context, history });
       answer = res.answer;
       source = "ai-service";
-      model = "yield-ai";
+      model = "harvestar-ai";
     } catch (error) {
       console.warn("[chat] AI service failed, falling back:", error instanceof Error ? error.message : error);
     }

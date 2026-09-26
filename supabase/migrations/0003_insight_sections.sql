@@ -1,4 +1,4 @@
--- Yield AI — report sections on ai_insights
+-- Harvestar AI — report sections on ai_insights
 -- Apply after 0002_conversations.sql (`npx supabase db push` or the SQL editor). Safe to re-run.
 -- Shapes are defined in lib/ai/contract.ts (FindingSchema, WarningSchema, ForecastSchema,
 -- EconomicsSchema, HarvestSchema). Every column is optional, so older rows and writers that leave

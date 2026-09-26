@@ -28,8 +28,11 @@ test.describe("home", () => {
   test("the do-first list opens a farm's advice", async ({ page }) => {
     const doFirst = page.getByRole("region", { name: "Do first this week" });
     await doFirst.getByRole("listitem").first().getByRole("link").click();
-    await expect(page).toHaveURL(/\/dashboard\/farm\/[\w-]+\?tab=advice/);
+    await expect(page).toHaveURL(/\/dashboard\/farm\/[\w-]+\?tab=advice#do-[\w-]+$/);
     await expect(page.getByRole("tablist", { name: "Farm details" }).getByRole("tab", { name: /Advice/ })).toHaveAttribute("aria-selected", "true");
+    // The linked action opens itself.
+    const id = new URL(page.url()).hash.slice(1);
+    await expect(page.locator(`[id="${id}"]`).getByRole("button", { name: "Why" })).toHaveAttribute("aria-expanded", "true");
   });
 
   test("old overview links open the farm's workspace", async ({ page }) => {
@@ -82,7 +85,7 @@ test.describe("farm workspace", () => {
     await card.getByRole("button", { name: /All \d+ actions|Full advice/ }).click();
     await expect(page).toHaveURL(/tab=advice/);
     await expect(page.getByRole("heading", { name: "Assessment" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Ask AI to plan the week" })).toHaveAttribute("href", /\/dashboard\/assistant\?farm=shamal-greenhouses/);
+    await expect(page.getByRole("banner").getByRole("link", { name: /^Ask AI/ })).toHaveAttribute("href", /\/dashboard\/assistant\?farm=shamal-greenhouses/);
   });
 
   test("history compares two days side by side", async ({ page }) => {

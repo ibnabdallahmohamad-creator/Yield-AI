@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { aiServiceConfigured } from "@/lib/ai/service";
 import { llmAvailable } from "@/lib/ai/llm";
+import { modelConfigured, modelFormat } from "@/lib/ai/model-client";
 import { env } from "@/lib/env";
 import { getDemoDashboard } from "@/lib/data/repository";
 
@@ -23,7 +24,9 @@ export async function GET() {
         fetched_at: data.farms.find((b) => b.next12h)?.next12h?.fetched_at ?? null,
       },
       auth: env.supabaseConfigured ? "supabase (+ local fallback)" : "local accounts",
-      chat: aiServiceConfigured() ? "ai-service" : llmAvailable() ? "llm" : "offline",
+      supabase_server_key: Boolean(env.supabaseServiceRoleKey),
+      model: modelConfigured() ? { configured: true, format: modelFormat(), name: env.aiModelName } : { configured: false, fallback: "built-in engine (same output format)" },
+      chat: modelConfigured() ? "harvestar-model" : aiServiceConfigured() ? "ai-service" : llmAvailable() ? "llm" : "offline",
       ingest: { devices: true, shared_key: Boolean(env.ingestApiKey) },
       live_simulation: env.liveSimulation,
     },

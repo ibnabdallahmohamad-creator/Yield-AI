@@ -54,9 +54,9 @@ const shared = globalThis as typeof globalThis & {
 };
 const cache = (shared.__yieldChatStore ??= { states: new Map(), pruned: new Map(), warned: false });
 
-/** `$YIELD_DATA_DIR/conversations`, or `.data/conversations` in the project. */
+/** `$HARVESTAR_DATA_DIR/conversations`, or `.data/conversations` in the project. */
 export function defaultChatDir(): string {
-  const root = process.env.YIELD_DATA_DIR?.trim() || path.join(process.cwd(), ".data");
+  const root = (process.env.HARVESTAR_DATA_DIR ?? process.env.YIELD_DATA_DIR)?.trim() || path.join(process.cwd(), ".data");
   return path.join(root, "conversations");
 }
 

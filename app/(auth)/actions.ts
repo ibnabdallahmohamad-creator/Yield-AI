@@ -3,8 +3,9 @@
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createLocalUser, LocalUserExistsError, verifyLocalCredentials } from "@/lib/auth/local-users";
-import { endSessions, safeNextPath, startLocalSession } from "@/lib/auth/session";
-import { DEMO_ACCOUNT, env } from "@/lib/env";
+import { endSessions, requestOrigin, safeNextPath, startLocalSession } from "@/lib/auth/session";
+import { ACCOUNT_EXISTS_MESSAGE, signUpProblem, type SignUpProblem } from "@/lib/auth/signup-errors";
+import { DEMO_ACCOUNT, env, TESTER_ACCOUNT } from "@/lib/env";
 import { createSupabaseAdminClient, createSupabaseServerClient, withTimeout } from "@/lib/supabase/server";
 
 export interface AuthFormState {
@@ -16,8 +17,17 @@ export interface AuthFormState {
 
 const SUPABASE_TIMEOUT_MS = 6000;
 
+/** Usernames that stand for a built-in account's email ("Tester" for the demo-day account). */
+function signInEmail(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const name = value.trim().toLowerCase();
+  if (name === TESTER_ACCOUNT.username.toLowerCase()) return TESTER_ACCOUNT.email;
+  if (name === "demo") return DEMO_ACCOUNT.email;
+  return value;
+}
+
 const SignInSchema = z.object({
-  email: z.email({ error: "Enter a valid email address." }).trim().toLowerCase(),
+  email: z.preprocess(signInEmail, z.email({ error: "Enter your email address or username." }).trim().toLowerCase()),
   password: z.string().min(1, { error: "Enter your password." }).max(72),
 });
 
@@ -37,6 +47,10 @@ function fieldErrors(error: z.ZodError): AuthFormState["fieldErrors"] {
     if ((key === "name" || key === "email" || key === "password") && !out[key]) out[key] = issue.message;
   }
   return out;
+}
+
+function problemState(problem: SignUpProblem, values: AuthFormState["values"]): AuthFormState {
+  return problem.field ? { fieldErrors: { [problem.field]: problem.message }, values } : { error: problem.message, values };
 }
 
 type SupabaseAttempt = { ok: true } | { ok: false; reason: "invalid" | "unconfirmed" | "unavailable"; message?: string };
@@ -61,6 +75,30 @@ async function supabaseSignIn(email: string, password: string): Promise<Supabase
   }
 }
 
+const isTesterLogin = (email: string, password: string) =>
+  email === TESTER_ACCOUNT.email.toLowerCase() && password === TESTER_ACCOUNT.password;
+
+/** Creates the Tester account in Supabase (confirmed) the first time it signs in, when the server key allows it. */
+async function ensureTesterInSupabase(): Promise<boolean> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return false;
+  try {
+    const { error } = await withTimeout(
+      admin.auth.admin.createUser({
+        email: TESTER_ACCOUNT.email,
+        password: TESTER_ACCOUNT.password,
+        email_confirm: true,
+        user_metadata: { name: TESTER_ACCOUNT.name, username: TESTER_ACCOUNT.username },
+      }),
+      SUPABASE_TIMEOUT_MS,
+      "Supabase createUser",
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 export async function signInAction(_prev: AuthFormState | undefined, formData: FormData): Promise<AuthFormState> {
   const next = safeNextPath(formData.get("next"));
   const parsed = SignInSchema.safeParse({ email: formData.get("email"), password: formData.get("password") });
@@ -68,8 +106,12 @@ export async function signInAction(_prev: AuthFormState | undefined, formData: F
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
   const { email, password } = parsed.data;
 
-  const remote = await supabaseSignIn(email, password);
+  let remote = await supabaseSignIn(email, password);
   if (remote.ok) redirect(next);
+  if (!remote.ok && remote.reason === "invalid" && isTesterLogin(email, password) && (await ensureTesterInSupabase())) {
+    remote = await supabaseSignIn(email, password);
+    if (remote.ok) redirect(next);
+  }
 
   // Local accounts (and the built-in demo account) keep working without Supabase.
   const local = await verifyLocalCredentials(email, password);
@@ -84,7 +126,7 @@ export async function signInAction(_prev: AuthFormState | undefined, formData: F
   if (!remote.ok && remote.reason === "unavailable" && env.supabaseConfigured) {
     return { error: "We couldn't reach the sign-in service. Try again, or use the demo account.", values };
   }
-  return { error: "That email and password don't match an account.", values };
+  return { error: "That email (or username) and password don't match an account.", values };
 }
 
 export async function signUpAction(_prev: AuthFormState | undefined, formData: FormData): Promise<AuthFormState> {
@@ -113,30 +155,36 @@ export async function signUpAction(_prev: AuthFormState | undefined, formData: F
           "Supabase createUser",
         );
         if (error) {
-          if (error.code === "email_exists" || error.status === 422) {
-            return { fieldErrors: { email: "An account with this email already exists — sign in instead." }, values };
-          }
+          const problem = signUpProblem(error);
+          if (problem) return problemState(problem, values);
           throw error;
         }
         const signedIn = await supabaseSignIn(email, password);
         if (signedIn.ok) redirect(next);
-        throw new Error("Sign-in after sign-up failed");
+        // The account exists in Supabase; a local copy would only shadow it.
+        return { notice: "Account created. Sign in to continue.", values };
       }
       const supabase = await createSupabaseServerClient();
       if (supabase) {
         const { data, error } = await withTimeout(
-          supabase.auth.signUp({ email, password, options: { data: { name } } }),
+          supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name }, emailRedirectTo: `${await requestOrigin()}/auth/confirm?next=${encodeURIComponent(next)}` },
+          }),
           SUPABASE_TIMEOUT_MS,
           "Supabase sign-up",
         );
         if (error) {
-          if (error.code === "user_already_exists" || error.code === "email_exists") {
-            return { fieldErrors: { email: "An account with this email already exists — sign in instead." }, values };
-          }
-          if (error.code === "weak_password") return { fieldErrors: { password: error.message }, values };
+          const problem = signUpProblem(error);
+          if (problem) return problemState(problem, values);
           throw error;
         }
         if (data.session) redirect(next);
+        // Supabase hides existing accounts: signing up again returns a user with no identities.
+        if (data.user && data.user.identities?.length === 0) {
+          return { fieldErrors: { email: ACCOUNT_EXISTS_MESSAGE }, values };
+        }
         return { notice: "Account created. Check your inbox to confirm your email, then sign in.", values };
       }
     } catch (error) {
@@ -150,7 +198,7 @@ export async function signUpAction(_prev: AuthFormState | undefined, formData: F
     await startLocalSession(user);
   } catch (error) {
     if (error instanceof LocalUserExistsError) {
-      return { fieldErrors: { email: "An account with this email already exists — sign in instead." }, values };
+      return { fieldErrors: { email: ACCOUNT_EXISTS_MESSAGE }, values };
     }
     console.error("[auth] Local sign-up failed:", error);
     return { error: "We couldn't create your account. Please try again.", values };

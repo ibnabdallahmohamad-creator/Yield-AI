@@ -1,4 +1,4 @@
--- Yield AI — saved assistant chats
+-- Harvestar AI — saved assistant chats
 -- Apply after 0001_init.sql (`npx supabase db push` or the SQL editor). Safe to re-run.
 -- Each conversation is private to the user who created it (row-level security).
 

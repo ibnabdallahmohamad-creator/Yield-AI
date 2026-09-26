@@ -440,6 +440,24 @@ export class LocalAccountStore implements AccountStore {
     });
   }
 
+  insertReadings(readings: SensorReading[], seen: Array<{ id: string; count: number }> = []): Promise<number> {
+    return run(this.state, async () => {
+      const farms = new Set(this.state.data.farms.map((f) => f.id));
+      const stored = await appendReadings(this.state, readings.filter((r) => farms.has(r.farm_id)));
+      const now = new Date().toISOString();
+      for (const { id, count } of seen) {
+        const d = this.state.data.devices.find((x) => x.id === id);
+        if (!d) continue;
+        d.last_seen_at = now;
+        d.paired_at ??= now;
+        d.readings_count += count;
+      }
+      this.state.version++;
+      scheduleFlush(this.state);
+      return stored.length;
+    });
+  }
+
   async dailyAggregates(fromDay: string, farmIds: string[]): Promise<SensorDaily[]> {
     const out: SensorDaily[] = [];
     for (const farmId of farmIds) {
@@ -529,6 +547,36 @@ function applyMeta(device: StoredDevice, meta: DeviceMeta): void {
   if (meta.local_ip) device.local_ip = meta.local_ip.slice(0, 45);
 }
 
+/** Append readings to their day files (or memory on a read-only disk). Call inside run(). */
+async function appendReadings(state: OwnerState, readings: SensorReading[]): Promise<StoredReading[]> {
+  const stored = readings.map((r) => ({ ...r, id: nextId() }));
+  const byFile = new Map<string, StoredReading[]>();
+  for (const r of stored) {
+    const file = dayFile(state.key, r.farm_id, qatarDateString(r.timestamp));
+    const list = byFile.get(file);
+    if (list) list.push(r);
+    else byFile.set(file, [r]);
+  }
+  for (const [file, list] of byFile) {
+    if (!shared.memoryOnly) {
+      try {
+        await mkdir(path.dirname(file), { recursive: true });
+        await appendFile(file, list.map(compact).join("\n") + "\n", "utf8");
+        continue;
+      } catch (error) {
+        if (!isReadOnlyError(error)) throw new AccountStoreError(`Could not store readings: ${messageOf(error)}`);
+        goMemoryOnly(error);
+      }
+    }
+    const mem = shared.memoryFiles.get(file);
+    if (mem) mem.push(...list);
+    else shared.memoryFiles.set(file, [...list]);
+  }
+  state.recent.push(...stored);
+  if (state.recent.length > RECENT_LIMIT) state.recent.splice(0, state.recent.length - RECENT_LIMIT);
+  return stored;
+}
+
 export const localDeviceRegistry: DeviceRegistry = {
   async findByToken(tokenHash) {
     await ensureRegistry();
@@ -567,31 +615,7 @@ export const localDeviceRegistry: DeviceRegistry = {
     return run(state, async () => {
       const d = state.data.devices.find((x) => x.id === device.id);
       if (!d) return 0;
-      const stored = readings.map((r) => ({ ...r, id: nextId() }));
-      const byFile = new Map<string, StoredReading[]>();
-      for (const r of stored) {
-        const file = dayFile(state.key, r.farm_id, qatarDateString(r.timestamp));
-        const list = byFile.get(file);
-        if (list) list.push(r);
-        else byFile.set(file, [r]);
-      }
-      for (const [file, list] of byFile) {
-        if (!shared.memoryOnly) {
-          try {
-            await mkdir(path.dirname(file), { recursive: true });
-            await appendFile(file, list.map(compact).join("\n") + "\n", "utf8");
-            continue;
-          } catch (error) {
-            if (!isReadOnlyError(error)) throw new AccountStoreError(`Could not store readings: ${messageOf(error)}`);
-            goMemoryOnly(error);
-          }
-        }
-        const mem = shared.memoryFiles.get(file);
-        if (mem) mem.push(...list);
-        else shared.memoryFiles.set(file, [...list]);
-      }
-      state.recent.push(...stored);
-      if (state.recent.length > RECENT_LIMIT) state.recent.splice(0, state.recent.length - RECENT_LIMIT);
+      const stored = await appendReadings(state, readings);
 
       const firstContact = !d.paired_at || d.pairing_code !== null;
       d.last_seen_at = new Date().toISOString();

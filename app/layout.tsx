@@ -9,12 +9,12 @@ const fraunces = Fraunces({ variable: "--font-fraunces", subsets: ["latin"], axe
 
 export const metadata: Metadata = {
   title: {
-    default: "Yield AI — The AI-Powered CRM for Agribusinesses",
-    template: "%s · Yield AI",
+    default: "Harvestar AI — The AI-Powered CRM for Agribusinesses",
+    template: "%s · Harvestar AI",
   },
   description:
     "Soil probes, satellite maps and an agronomist AI for farms in Qatar — salinity, irrigation and crop decisions grounded in FAO science. Open-source and free.",
-  applicationName: "Yield AI",
+  applicationName: "Harvestar AI",
 };
 
 export const viewport: Viewport = {

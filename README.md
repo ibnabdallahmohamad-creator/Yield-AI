@@ -1,6 +1,6 @@
-# Yield AI — the AI-powered CRM for agribusinesses
+# Harvestar AI — the AI-powered CRM for agribusinesses
 
-Yield AI turns soil-probe readings from farms in northern Qatar into salinity and moisture maps, risk
+Harvestar AI turns soil-probe readings from farms in northern Qatar into salinity and moisture maps, risk
 scores and plain-language actions: how much to irrigate, when to leach salts and what to plant next
 season. Every number comes from published agronomy (FAO-56 and FAO-29), with the method named next
 to it.
@@ -84,19 +84,22 @@ Copy `.env.example` to `.env.local`. Every variable is optional.
 | --- | --- |
 | `SUPABASE_URL` | Supabase project URL. Without it (or the anon key), the app uses the demo data and local accounts. |
 | `SUPABASE_ANON_KEY` | Supabase anon (publishable) key, used for sign-in. `NEXT_PUBLIC_SUPABASE_*` names are also accepted. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Data reads after the app's own sign-in check, probe ingest and `npm run seed`. Without it, reads use the signed-in user's Supabase session. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Data reads after the app's own sign-in check, probe ingest and `npm run seed`. Without it, reads use the signed-in user's Supabase session and ESP32s pair and upload through the `0005` database functions. New-style `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SECRET_KEY` names work too. |
 | `USE_MOCK` | `true` shows the built-in demo data even when Supabase is configured. |
+| `AI_MODEL_URL` | The fine-tuned Harvestar AI model (see "The Harvestar AI model" below). OpenAI-compatible (`…/v1`, `…/v1/chat/completions`), Ollama (`…/api/chat`) or a raw JSON endpoint. Until it is set, the built-in agronomy engine answers in the model's format. |
+| `AI_MODEL_API_KEY`, `AI_MODEL_NAME`, `AI_MODEL_FORMAT` | Optional bearer token, served model name (default `harvestar-ai`) and `openai` / `ollama` / `raw` (guessed from the URL). |
 | `AI_SERVICE_URL` | The team's fine-tuned model endpoint, the first stop for chat answers (format below). |
 | `AI_SERVICE_API_KEY` | Optional bearer token sent to `AI_SERVICE_URL`. |
 | `ANTHROPIC_API_KEY` | The LLM key: Claude answers when the AI service is unset or failing. |
 | `ANTHROPIC_MODEL` | LLM model, default `claude-opus-5`. |
 | `AUTH_SECRET` | Signs local-account session cookies. **Set it in production** (`openssl rand -base64 32`). Without it, a key derived from `SUPABASE_SERVICE_ROLE_KEY` is used, and failing that a development default. |
-| `DEMO_EMAIL`, `DEMO_PASSWORD` | Credentials behind "Try the demo account" (defaults: `demo@yield-ai.app` / `harvest-demo-2026`). |
+| `DEMO_EMAIL`, `DEMO_PASSWORD` | Credentials behind "Try the demo account" (defaults: `demo@harvestar.ai` / `harvest-demo-2026`). |
+| `TESTER_EMAIL`, `TESTER_PASSWORD` | The ready-made test account, signed in with the username **Tester** and password **Tester** (defaults: `tester@harvestar.ai` / `Tester`). |
 | `INGEST_API_KEY` | A shared key for sending readings to the **demo farms** with `POST /api/readings`. Not needed for accounts' ESP32 devices, which get their own token when they pair. |
 | `LIVE_SIMULATION` | Demo account's live feed: `auto` (default) simulates readings when no real ones arrive; `on` or `off`. Real accounts only ever see their devices' readings. |
 | `OPEN_METEO_DISABLED` | `true` skips Open-Meteo. ET₀ is then estimated with Hargreaves and there is no 12-hour forecast. |
 | `CRON_SECRET` | Enables `GET /api/cron/weather` (the 12-hour forecast refresh) for hosts that run scheduled jobs. |
-| `YIELD_DATA_DIR` | Where local accounts, their farms, devices and readings, saved chats and the forecast cache are stored (default `.data/`). |
+| `HARVESTAR_DATA_DIR` | Where local accounts, their farms, devices and readings, saved chats and the forecast cache are stored (default `.data/`). |
 
 Check what is active at `GET /api/health`, which reports the data source, auth, chat chain, ingest,
 live mode and the 12-hour forecast.
@@ -116,7 +119,10 @@ live mode and the 12-hour forecast.
    - `0004_accounts_devices.sql` — accounts' own farms (`farms.owner_id`), the `devices` table (ESP32
      probes: pairing codes, hashed tokens, interval, last seen) and `reading_series()`, which buckets
      readings in the database for the Readings chart. Each account sees only its own farms, devices
-     and readings; the seeded demo farms (no owner) are shown to the demo account only.
+     and readings; the seeded demo farms (no owner) are shown to the demo account only;
+   - `0005_device_rpc.sql` — three security-definer functions that let an ESP32 pair and upload with
+     only the publishable key (each takes the device's own token or pairing code), so the server does
+     not need the service key for devices.
 2. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 3. Run `npm run seed`. It loads:
    - 8 farms in northern Qatar;
@@ -196,7 +202,7 @@ Browser → server (requires a signed-in session):
   "farm_id": "khor-north",
   "answer": "**Salinity at Al Khor North Farm:** ECe is 5.9 dS/m …",
   "source": "ai-service",
-  "model": "yield-ai",
+  "model": "harvestar-ai",
   "created_at": "2026-09-24T09:12:03.000Z"
 }
 ```
@@ -259,6 +265,30 @@ are stored in the `0002_conversations.sql` tables. Local accounts use one JSON f
 `.data/conversations/` (memory only on read-only hosts). The shared demo account gets a separate
 history per sign-in, and those files are deleted after 7 days.
 
+## The Harvestar AI model
+
+The fine-tuned model (training set in [`data/dataset/unsloth`](data/dataset/unsloth)) is wired in and
+only waits for its endpoint: set `AI_MODEL_URL` and every farm's **AI analysis** tab, and the
+assistant's answers about a farm, come from it.
+
+For each request the server builds **exactly the input the model was trained on**
+([`lib/ai/model-input.ts`](lib/ai/model-input.ts), reusing the dataset builder), with no unit left to guess:
+
+| # | Input | Source | Unit |
+| --- | --- | --- | --- |
+| 1–8 | air temperature, relative humidity, wind (speed + direction), rainfall, reference ET₀, solar radiation, crop and growth stage, irrigation water | Open-Meteo at the farm (31 days back, 7 ahead; wind requested in m/s at 10 m) and the farm's settings | °C, %, m/s, mm, mm/day, MJ/m², dS/m |
+| 9 | soil moisture | the farm's ESP32 probes: each probe's mean of its last hour (probes silent for 24 h are left out), then mean / min / max across probes and the change from a week earlier | % VWC, 0–30 cm |
+
+ESP32s may report in whatever units their sketch uses: `lib/ai/esp32-units.ts` converts at ingest
+(fractions → %, °F/K → °C, µS/cm, mS/m, S/m → dS/m), either from suffixed field names (`vwc`,
+`soil_temp_f`, `ec_ms_m`…) or from a `"units"` object in the reading.
+
+The model's JSON answer (`summary`, `warnings`, `recommendations`, `forecast`, `insights`,
+`economic_advice`, `crop_plan`, `sources`, `data_gaps`) is validated against the training schema and shown
+section by section, next to the inputs it read. If the model is unset, slow (55 s) or answers
+off-format, the built-in agronomy engine answers in the same format, and the tab says so.
+`GET /api/analysis?farm=<id>` (or `POST {farm_id, question}`) returns the same result as JSON.
+
 ## ESP32 devices
 
 Each account connects its own ESP32 probes over Wi-Fi. No keys to copy by hand:
@@ -266,8 +296,8 @@ Each account connects its own ESP32 probes over Wi-Fi. No keys to copy by hand:
 1. **Farms & devices → Add farm**, then **Connect ESP32**. Pick the farm, name the device and choose
    how often it sends a reading (10 s by default). The dashboard shows an 8-character **pairing code**
    (valid 30 minutes) and the server address to use.
-2. **Flash the firmware** in [`firmware/esp32/yield-ai-probe`](firmware/esp32/yield-ai-probe) (see its
-   README). On first boot the ESP32 opens a Wi-Fi hotspot, `YieldAI-Setup-XXXX`. Join it with a phone:
+2. **Flash the firmware** in [`firmware/esp32/harvestar-probe`](firmware/esp32/harvestar-probe) (see its
+   README). On first boot the ESP32 opens a Wi-Fi hotspot, `Harvestar-Setup-XXXX`. Join it with a phone:
    the setup page lists nearby networks. Enter your Wi-Fi, the server address and the pairing code.
 3. The device pairs, receives its own token, and starts sending readings. The dashboard follows along:
    *Waiting for the device → Paired → Receiving readings*.
@@ -298,7 +328,8 @@ device it is.
 ```
 
 - Every measurement is optional, but send at least one. Units as in the table below; common sketch
-  names are also accepted (`soil_moisture`, `soil_temp`, `nitrogen`, `humidity`…).
+  names are also accepted (`soil_moisture`, `soil_temp`, `nitrogen`, `humidity`…), and other units are
+  converted (`"vwc": 0.21`, `"soil_temp_f": 82.4`, `"ec_ms_m": 185`, or `"units": { "temperature": "°F" }`).
 - `timestamp` is Unix seconds (or ms) or ISO 8601 with an offset. Without a clock, send `age_s`
   (seconds since the reading was taken) or nothing (now). A timestamp before 2024 (a clock that was
   never set) or in the future is replaced by the time received, with a warning; readings older than
@@ -325,6 +356,17 @@ probe, so they stay fast however often the devices report.
   the refresh at each 00:00 and 12:00. Serverless hosts refresh on the first request in each half-day,
   or from a scheduled `GET /api/cron/weather` with `Authorization: Bearer $CRON_SECRET` (cron
   `0 9,21 * * *` UTC).
+- **Weather maps** (`/dashboard/weather`, and the "Weather forecast" layers on the Home map): wind
+  (animated particles), temperature, feels-like, humidity, dew point, rain, rain total, chance of
+  rain, cloud, gusts and pressure. Each runs hour by hour over the next 72 hours, with isolines and a
+  timeline. `GET /api/weather/grid` serves the data: a 0.1° grid over Qatar (about 11 km, ECMWF IFS
+  HRES by default) nested in a 0.5° grid over the Gulf, 554 points in one Open-Meteo request. It
+  downloads on the same 00:00 / 12:00 schedule and is cached in `.data/weather/grid.json`. The browser
+  interpolates the grid (bicubic in space, linear in time), and the meteogram, the day highlights,
+  the spray windows and the farm table all sample the same field.
+- **Licence:** Open-Meteo's free API is for **non-commercial use only** (data CC BY 4.0, credited
+  on every map). A commercial deployment needs an Open-Meteo API subscription, which uses the
+  customer endpoint and an API key. The code calls the free endpoint today.
 
 ## Probe ingest for the demo farms — `POST /api/readings`
 
@@ -377,13 +419,19 @@ naming the method.
 | Field maps | Inverse-distance weighting, power 2, on 5 m cells, clipped to the field polygon |
 
 > **Note on "Maas–Hanson":** the project brief mentions a "Maas–Hanson" model. The salinity
-> threshold–slope model in FAO-29 is **Maas & Hoffman (1977)**, so that is what Yield AI implements
+> threshold–slope model in FAO-29 is **Maas & Hoffman (1977)**, so that is what Harvestar AI implements
 > and cites.
 
 The crop market notes (e.g. "oversupplied in Qatar during the peak season") are illustrative demo
 signals set in `lib/agronomy-tables.ts`. Replace them with your own market data.
 
 ## Demo tips
+
+- **Test account:** sign in with username **Tester**, password **Tester**. It is a real account with
+  three farms (Al Khor tomatoes, Umm Salal cucumbers, Al Sheehaniya alfalfa), three test probes each and
+  30 days of readings; the probes keep reporting every 30 s while the dashboard is open. It can also
+  pair a real ESP32. With Supabase it is `tester@harvestar.ai` (created on first sign-in when the
+  service key is set; otherwise insert it once in *Authentication → Users*).
 
 - **Projector or second screen:** the layouts are tuned for 1280×720 up to 1920×1080. Phones get a
   farm sheet and a layer menu.
@@ -420,8 +468,10 @@ e2e/                    Playwright tests
 Stack: Next.js 16 (App Router), TypeScript, Tailwind CSS 4, shadcn/ui, react-leaflet, Recharts,
 Supabase, Zod, the Anthropic SDK, Vitest and Playwright.
 
-Map tiles: © Esri, Maxar, Earthstar Geographics (satellite) and © OpenStreetMap contributors, © CARTO
-(streets). Weather: [Open-Meteo](https://open-meteo.com).
+Map tiles: © Esri, Maxar, Earthstar Geographics (satellite), Esri World Street Map and World
+Canvas (streets, and the weather maps' light/dark base; Esri, HERE, Garmin, © OpenStreetMap
+contributors). These need no key. CARTO's basemaps now require one and are no longer used. Weather:
+[Open-Meteo](https://open-meteo.com) (CC BY 4.0; the free API is non-commercial only).
 
 ## License
 

@@ -4,6 +4,7 @@ import { CROPS } from "@/lib/agronomy-tables";
 import { getCurrentUser } from "@/lib/auth/session";
 import { rankFarms, riskReason } from "@/lib/dashboard";
 import { getDashboardFor } from "@/lib/data/repository";
+import { actionKey } from "@/lib/done-actions";
 
 /** Shared frame for every /dashboard page. Pages still check the session themselves (and redirect). */
 export default async function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -21,7 +22,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
       riskScore: b.insight ? Math.round(b.insight.risk_score) : null,
       reason: reason.label,
       reasonTone: reason.tone,
-      doFirst: b.insight?.recommendations.filter((r) => r.priority === "high").length ?? 0,
+      doFirst: (b.insight?.recommendations ?? []).filter((r) => r.priority === "high").map((r) => actionKey(b.farm.id, r.title)),
     };
   });
   return (

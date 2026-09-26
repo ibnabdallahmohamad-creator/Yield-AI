@@ -52,6 +52,14 @@ function redirectTo(request: NextRequest, pathname: string, from: NextResponse, 
 }
 
 export async function proxy(request: NextRequest) {
+  // Supabase sends confirmation links to its Site URL when our redirect isn't allow-listed.
+  if (request.nextUrl.pathname === "/") {
+    const params = request.nextUrl.searchParams;
+    if (!params.has("code") && !params.has("token_hash") && !params.has("error_code")) return NextResponse.next();
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/confirm";
+    return NextResponse.redirect(url);
+  }
   const response = { current: NextResponse.next({ request }) };
   const local = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
   const signedIn = Boolean(local) || (await hasSupabaseSession(request, response));
@@ -70,5 +78,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/signup"],
+  matcher: ["/", "/dashboard/:path*", "/login", "/signup"],
 };

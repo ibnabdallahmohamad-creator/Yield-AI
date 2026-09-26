@@ -2,11 +2,12 @@
  * Farms, ESP32 devices and readings for Supabase accounts (supabase/migrations/0004_accounts_devices.sql).
  * Reads and writes use the service-role client with an explicit owner filter when the server has
  * SUPABASE_SERVICE_ROLE_KEY, otherwise the user's own session (row-level security does ownership).
- * Devices have no user session, so pairing and ingest need the service role.
+ * Devices have no user session: pairing and ingest use the service role when the server has it, and
+ * otherwise the token-checked database functions of migration 0005 (publishable key only).
  */
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient, createSupabaseDataClient, withTimeout } from "../supabase/server";
+import { createSupabaseAdminClient, createSupabaseAnonClient, createSupabaseDataClient, withTimeout } from "../supabase/server";
 import { fetchDaily, insertReadings, parseFarmRow, toReading } from "../data/supabase-source";
 import { addReadings, SERIES_METRICS, type BucketMap, type BucketStats } from "../readings/series";
 import type { Farm, SensorDaily, SensorReading } from "../types";
@@ -99,12 +100,19 @@ const bump = (owner: string) => localVersions.set(owner, (localVersions.get(owne
 export class SupabaseAccountStore implements AccountStore {
   constructor(readonly ownerId: string) {}
 
-  private async client(): Promise<{ db: SupabaseClient; admin: boolean }> {
-    const admin = createSupabaseAdminClient();
-    if (admin) return { db: admin, admin: true };
-    const db = await createSupabaseDataClient();
-    if (!db) throw new AccountStoreError("Supabase is not configured");
-    return { db, admin: false };
+  private clientPromise: Promise<{ db: SupabaseClient; admin: boolean }> | null = null;
+
+  /** Made once per store, on first use: work that finishes after the response (the test account's top-up) must not read cookies again. */
+  private client(): Promise<{ db: SupabaseClient; admin: boolean }> {
+    this.clientPromise ??= (async () => {
+      const admin = createSupabaseAdminClient();
+      if (admin) return { db: admin, admin: true };
+      const db = await createSupabaseDataClient();
+      if (!db) throw new AccountStoreError("Supabase is not configured");
+      return { db, admin: false };
+    })();
+    this.clientPromise.catch(() => (this.clientPromise = null));
+    return this.clientPromise;
   }
 
   async version(): Promise<string> {
@@ -250,6 +258,35 @@ export class SupabaseAccountStore implements AccountStore {
     }
   }
 
+  async insertReadings(readings: SensorReading[], seen: Array<{ id: string; count: number }> = []): Promise<number> {
+    if (readings.length === 0) return 0;
+    const { db } = await this.client();
+    let stored: number;
+    try {
+      stored = await withTimeout(insertReadings(db, readings), TIMEOUT_MS * 3, "Supabase insert readings");
+    } catch (error) {
+      throw new AccountStoreError(error instanceof Error ? error.message : String(error));
+    }
+    if (seen.length) {
+      const now = new Date().toISOString();
+      const data = await exec("devices", db.from("devices").select("id, readings_count, paired_at").eq("owner_id", this.ownerId).in("id", seen.map((x) => x.id)));
+      await Promise.all(
+        rows(data).map((r) =>
+          exec(
+            "device seen",
+            db
+              .from("devices")
+              .update({ last_seen_at: now, paired_at: r.paired_at ?? now, readings_count: (num(r.readings_count) ?? 0) + (seen.find((x) => x.id === r.id)?.count ?? 0) })
+              .eq("id", String(r.id))
+              .eq("owner_id", this.ownerId),
+          ),
+        ),
+      );
+    }
+    bump(this.ownerId);
+    return stored;
+  }
+
   async firstReadingAt(farmId: string): Promise<number | null> {
     const { db } = await this.client();
     const data = await exec("first reading", db.from("sensor_readings").select("timestamp").eq("farm_id", farmId).order("timestamp").limit(1));
@@ -289,10 +326,29 @@ function bucketsFromRpc(list: Row[]): BucketMap {
 // Devices
 // ---------------------------------------------------------------------------
 
-function admin(): SupabaseClient {
-  const client = createSupabaseAdminClient();
-  if (!client) throw new AccountStoreError("ESP32 devices need SUPABASE_SERVICE_ROLE_KEY on the server");
+/** The service-role client, or null when the server has no key (the 0005 functions are used then). */
+const admin = (): SupabaseClient | null => createSupabaseAdminClient();
+
+function rpcClient(): SupabaseClient {
+  const client = createSupabaseAnonClient();
+  if (!client) throw new AccountStoreError("Supabase is not configured");
   return client;
+}
+
+/** A rejected or malformed service key: fall back to the token-checked database functions. */
+const keyRejected = (error: unknown) => /invalid api key|invalid jwt|jwt|unauthori[sz]ed|no api key|401|403|permission denied/i.test(error instanceof Error ? error.message : String(error));
+
+async function withAdmin<T>(viaAdmin: (db: SupabaseClient) => Promise<T>, viaRpc: () => Promise<T>): Promise<T> {
+  const db = admin();
+  if (db) {
+    try {
+      return await viaAdmin(db);
+    } catch (error) {
+      if (!keyRejected(error)) throw error;
+      console.warn("[device] The Supabase service key was rejected, using the device functions:", error instanceof Error ? error.message : error);
+    }
+  }
+  return viaRpc();
 }
 
 function metaColumns(meta: DeviceMeta): Row {
@@ -303,53 +359,85 @@ function metaColumns(meta: DeviceMeta): Row {
   return out;
 }
 
+function metaArgs(meta: DeviceMeta) {
+  return {
+    p_firmware: meta.firmware ? meta.firmware.slice(0, 40) : null,
+    p_rssi: typeof meta.rssi === "number" && Number.isFinite(meta.rssi) ? Math.round(meta.rssi) : null,
+    p_local_ip: meta.local_ip ? meta.local_ip.slice(0, 45) : null,
+  };
+}
+
 export const supabaseDeviceRegistry: DeviceRegistry = {
-  async findByToken(tokenHash) {
-    const data = await exec("device", admin().from("devices").select(DEVICE_COLUMNS).eq("token_hash", tokenHash).limit(1));
-    const row = one(data);
+  async findByToken(tokenHash, token) {
+    const row = await withAdmin(
+      async (db) => one(await exec("device", db.from("devices").select(DEVICE_COLUMNS).eq("token_hash", tokenHash).limit(1))),
+      async () => one(await exec("device_by_token", rpcClient().rpc("device_by_token", { p_token: token }))),
+    );
     return row ? toDevice(row) : null;
   },
 
   async claimPairingCode(code, token, meta) {
     const now = new Date().toISOString();
-    const data = await exec(
-      "pair device",
-      admin()
-        .from("devices")
-        .update({ token_hash: token.hash, token_hint: token.hint, pairing_code: null, pairing_expires_at: null, paired_at: now, ...metaColumns(meta) })
-        .eq("pairing_code", code)
-        .gt("pairing_expires_at", now)
-        .select(DEVICE_COLUMNS),
+    const row = await withAdmin(
+      async (db) =>
+        one(
+          await exec(
+            "pair device",
+            db
+              .from("devices")
+              .update({ token_hash: token.hash, token_hint: token.hint, pairing_code: null, pairing_expires_at: null, paired_at: now, ...metaColumns(meta) })
+              .eq("pairing_code", code)
+              .gt("pairing_expires_at", now)
+              .select(DEVICE_COLUMNS),
+          ),
+        ),
+      async () =>
+        one(await exec("device_claim_pairing", rpcClient().rpc("device_claim_pairing", { p_code: code, p_token: token.token, p_hint: token.hint, ...metaArgs(meta) }))),
     );
-    const row = one(data);
     if (!row) return null;
     const device = toDevice(row);
     bump(device.owner_id);
     return device;
   },
 
-  async recordReadings(device, readings, meta) {
-    const db = admin();
-    let stored: number;
-    try {
-      stored = await withTimeout(insertReadings(db, readings), TIMEOUT_MS * 2, "Supabase insert readings");
-    } catch (error) {
-      throw new AccountStoreError(error instanceof Error ? error.message : String(error));
-    }
-    const now = new Date().toISOString();
-    await exec(
-      "device seen",
-      db
-        .from("devices")
-        .update({
-          last_seen_at: now,
-          paired_at: device.paired_at ?? now,
-          pairing_code: null,
-          pairing_expires_at: null,
-          readings_count: device.readings_count + stored,
-          ...metaColumns(meta),
-        })
-        .eq("id", device.id),
+  async recordReadings(device, readings, meta, token) {
+    const stored = await withAdmin(
+      async (db) => {
+        let n: number;
+        try {
+          n = await withTimeout(insertReadings(db, readings), TIMEOUT_MS * 2, "Supabase insert readings");
+        } catch (error) {
+          throw new AccountStoreError(error instanceof Error ? error.message : String(error));
+        }
+        const now = new Date().toISOString();
+        await exec(
+          "device seen",
+          db
+            .from("devices")
+            .update({
+              last_seen_at: now,
+              paired_at: device.paired_at ?? now,
+              pairing_code: null,
+              pairing_expires_at: null,
+              readings_count: device.readings_count + n,
+              ...metaColumns(meta),
+            })
+            .eq("id", device.id),
+        );
+        return n;
+      },
+      async () => {
+        if (!token) throw new AccountStoreError("The device token is needed to store readings without the Supabase service key");
+        // Without a session the farm's position isn't known here: the database uses the device's, then the farm's.
+        const own = device.lat != null && device.lng != null;
+        let n = 0;
+        for (let i = 0; i < readings.length; i += 500) {
+          const chunk = readings.slice(i, i + 500).map(({ farm_id: _f, sensor_id: _s, lat, lng, ...r }) => ({ ...r, lat: own ? lat : null, lng: own ? lng : null }));
+          const data = await exec("device_record_readings", rpcClient().rpc("device_record_readings", { p_token: token, p_readings: chunk, ...metaArgs(meta) }));
+          n += num(data) ?? 0;
+        }
+        return n;
+      },
     );
     bump(device.owner_id);
     return stored;

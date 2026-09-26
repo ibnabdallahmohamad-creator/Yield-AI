@@ -36,7 +36,7 @@ export function GetStarted({
       <span className="flex size-12 items-center justify-center rounded-2xl bg-accent text-primary" aria-hidden="true">
         {hasFarms ? <Wifi className="size-6" /> : <Cpu className="size-6" />}
       </span>
-      <p className="text-xl font-semibold">{hasFarms ? "Waiting for the first readings" : "Welcome to Yield AI"}</p>
+      <p className="text-xl font-semibold">{hasFarms ? "Waiting for the first readings" : "Welcome to Harvestar AI"}</p>
       <p className="text-sm text-muted-foreground">
         {device
           ? device.paired

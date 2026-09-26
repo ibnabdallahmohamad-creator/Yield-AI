@@ -36,6 +36,14 @@ export function createSupabaseAdminClient(): SupabaseClient | null {
   });
 }
 
+/** Client with only the publishable (anon) key and no session: for the ESP32 database functions. */
+export function createSupabaseAnonClient(): SupabaseClient | null {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) return null;
+  return createClient(env.supabaseUrl, env.supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /** Client for data reads: service role when available, otherwise the user's session. */
 export async function createSupabaseDataClient(): Promise<SupabaseClient | null> {
   return createSupabaseAdminClient() ?? (await createSupabaseServerClient());

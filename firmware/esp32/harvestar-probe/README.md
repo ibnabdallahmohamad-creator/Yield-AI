@@ -1,6 +1,6 @@
-# Yield AI probe — ESP32 firmware
+# Harvestar AI probe — ESP32 firmware
 
-Sends soil readings from an ESP32 to your Yield AI dashboard over Wi-Fi. It pairs with a short code
+Sends soil readings from an ESP32 to your Harvestar AI dashboard over Wi-Fi. It pairs with a short code
 from the dashboard (no keys to type), sends a reading every 10 s by default, follows the interval you
 set in the dashboard, and keeps readings while the Wi-Fi is down.
 
@@ -9,15 +9,15 @@ libraries.
 
 ## Flash it
 
-**Arduino IDE:** install the *esp32* boards package (Espressif), open `yield-ai-probe.ino`, pick
+**Arduino IDE:** install the *esp32* boards package (Espressif), open `harvestar-probe.ino`, pick
 *ESP32 Dev Module*, then Upload.
 
 **arduino-cli:**
 
 ```bash
 arduino-cli core install esp32:esp32
-arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32/yield-ai-probe
-arduino-cli upload  --fqbn esp32:esp32:esp32 -p COM5 firmware/esp32/yield-ai-probe   # or /dev/ttyUSB0
+arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32/harvestar-probe
+arduino-cli upload  --fqbn esp32:esp32:esp32 -p COM5 firmware/esp32/harvestar-probe   # or /dev/ttyUSB0
 ```
 
 On Windows, if the compile fails with `bits/c++config.h: No such file or directory`, the build path is
@@ -27,7 +27,7 @@ too long: build from a short folder (e.g. `subst W: <folder>`), or pass `--build
 
 1. In the dashboard: **Farms & devices → Connect ESP32**. Pick the farm and the interval; you get a
    pairing code like `K8A3-BNSQ` (valid 30 minutes) and the server address.
-2. Power the ESP32. It opens a Wi-Fi network **`YieldAI-Setup-XXXX`**. Join it with a phone; the setup
+2. Power the ESP32. It opens a Wi-Fi network **`Harvestar-Setup-XXXX`**. Join it with a phone; the setup
    page opens by itself (or browse to `http://192.168.4.1`).
 3. Pick the farm's Wi-Fi, type its password, the server address and the pairing code. **Save and
    connect.**

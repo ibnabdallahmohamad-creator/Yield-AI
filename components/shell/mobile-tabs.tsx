@@ -7,7 +7,7 @@
 import { ChevronRight, CloudSun, Cpu, House, LandPlot, ListChecks, MessagesSquare, MoreHorizontal, Search, Sparkles, Sprout } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { sectionHref, useShell, type Section } from "@/components/shell/shell-context";
+import { sectionHref, useDoFirstLeft, useShell, type Section } from "@/components/shell/shell-context";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
@@ -38,9 +38,9 @@ function MoreLink({ href, icon, label, hint, onClick }: { href?: string; icon: R
 }
 
 export function MobileTabs() {
-  const { section, farmId, farms, setPaletteOpen } = useShell();
+  const { section, farmId, setPaletteOpen } = useShell();
   const [more, setMore] = useState(false);
-  const doFirst = farms.reduce((n, f) => n + f.doFirst, 0);
+  const doFirst = useDoFirstLeft();
   const inMore = section === "weather" || section === "land" || section === "devices";
 
   const tab = (s: Exclude<Section, "other">, label: string, icon: React.ReactNode, badge?: number) => (

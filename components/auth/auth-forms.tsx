@@ -2,7 +2,7 @@
 
 import { ArrowRight, Loader2, Sprout } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useId, useState } from "react";
+import { useActionState, useId, useState, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
 import { demoSignInAction, signInAction, signUpAction, type AuthFormState } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
@@ -46,15 +46,15 @@ function Field({
         autoFocus={autoFocus}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className="h-10 bg-card text-[15px]"
+        className="h-11 bg-card text-base sm:h-10 sm:pointer-coarse:h-11"
         required
       />
       {error ? (
-        <p id={`${id}-error`} className="text-[13px] text-destructive">
+        <p id={`${id}-error`} className="text-sm text-destructive">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="text-[13px] text-muted-foreground">
+        <p id={`${id}-hint`} className="text-sm text-muted-foreground">
           {hint}
         </p>
       ) : null}
@@ -64,7 +64,7 @@ function Field({
 
 function SubmitButton({ children, pending }: { children: React.ReactNode; pending: boolean }) {
   return (
-    <Button type="submit" size="lg" className="h-10 w-full text-[15px]" disabled={pending}>
+    <Button type="submit" size="lg" className="h-11 w-full text-base sm:h-10 sm:pointer-coarse:h-11" disabled={pending}>
       {pending ? <Loader2 className="animate-spin" /> : null}
       {children}
     </Button>
@@ -86,21 +86,28 @@ function FormMessage({ state }: { state: AuthFormState | undefined }) {
   );
 }
 
-function DemoButtonInner() {
+function DemoButtonInner({ label, className }: { label: string; className?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" variant="outline" size="lg" className="h-10 w-full border-primary/30 bg-accent/60 text-[15px] hover:bg-accent" disabled={pending}>
+    <Button
+      type="submit"
+      variant="outline"
+      size="lg"
+      className={cn("h-11 w-full border-primary/30 bg-accent/60 text-base hover:bg-accent sm:h-10 sm:pointer-coarse:h-11", className)}
+      disabled={pending}
+    >
       {pending ? <Loader2 className="animate-spin" /> : <Sprout className="text-primary" />}
-      Try the demo account
+      {label}
     </Button>
   );
 }
 
-export function DemoSignIn({ next }: { next: string }) {
+/** One click into the demo account (the sign-in page, and the landing page's hero). */
+export function DemoSignIn({ next, label = "Try the demo account", className }: { next: string; label?: string; className?: string }) {
   return (
     <form action={demoSignInAction}>
       <input type="hidden" name="next" value={next} />
-      <DemoButtonInner />
+      <DemoButtonInner label={label} className={className} />
     </form>
   );
 }
@@ -114,11 +121,33 @@ function Divider() {
   );
 }
 
-export function LoginForm({ next }: { next: string }) {
+const LOGIN_NOTICES: Record<string, AuthFormState> = {
+  confirmed: { notice: "Your email is confirmed. Sign in to continue." },
+  "link-expired": { error: "That confirmation link has expired or was already used. If you confirmed your email, just sign in." },
+};
+
+const subscribeToHash = (onChange: () => void) => {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+};
+
+/** Supabase reports a reused or expired email link in the URL fragment, which only the browser sees. */
+function useLinkNotice(notice: string | undefined): AuthFormState | undefined {
+  const linkFailed = useSyncExternalStore(
+    subscribeToHash,
+    () => /(^|&)error(_code)?=/.test(window.location.hash.slice(1)),
+    () => false,
+  );
+  if (linkFailed) return LOGIN_NOTICES["link-expired"];
+  return notice ? LOGIN_NOTICES[notice] : undefined;
+}
+
+export function LoginForm({ next, notice }: { next: string; notice?: string }) {
   const [state, action, pending] = useActionState(signInAction, undefined);
+  const linkNotice = useLinkNotice(notice);
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
+      <h1 className="font-display text-[1.75rem] leading-tight font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted-foreground">Sign in to see your farms.</p>
       <div className="mt-6">
         <DemoSignIn next={next} />
@@ -126,12 +155,12 @@ export function LoginForm({ next }: { next: string }) {
       <Divider />
       <form action={action} className="space-y-4" noValidate>
         <input type="hidden" name="next" value={next} />
-        <FormMessage state={state} />
+        <FormMessage state={state ?? linkNotice} />
         <Field
-          label="Email"
+          label="Email or username"
           name="email"
-          type="email"
-          autoComplete="email"
+          type="text"
+          autoComplete="username"
           placeholder="you@farm.qa"
           defaultValue={state?.values?.email}
           error={state?.fieldErrors?.email}
@@ -148,7 +177,7 @@ export function LoginForm({ next }: { next: string }) {
         </SubmitButton>
       </form>
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        New to Yield AI?{" "}
+        New to Harvestar AI?{" "}
         <Link href={next !== "/dashboard" ? `/signup?next=${encodeURIComponent(next)}` : "/signup"} className="font-medium text-primary underline-offset-4 hover:underline">
           Create a free account
         </Link>
@@ -162,7 +191,7 @@ export function SignupForm({ next }: { next: string }) {
   const [showPassword, setShowPassword] = useState(false);
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+      <h1 className="font-display text-[1.75rem] leading-tight font-semibold tracking-tight">Create your account</h1>
       <p className="mt-1 text-sm text-muted-foreground">Free and open-source — no card, no trial.</p>
       <form action={action} className="mt-6 space-y-4" noValidate>
         <input type="hidden" name="next" value={next} />
@@ -186,10 +215,10 @@ export function SignupForm({ next }: { next: string }) {
             hint="At least 8 characters."
             error={state?.fieldErrors?.password}
           />
-          <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground select-none">
+          <label className="flex min-h-11 w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none sm:min-h-8 sm:pointer-coarse:min-h-11">
             <input
               type="checkbox"
-              className="size-3.5 accent-[var(--primary)]"
+              className="size-4 accent-[var(--primary)]"
               checked={showPassword}
               onChange={(e) => setShowPassword(e.target.checked)}
             />

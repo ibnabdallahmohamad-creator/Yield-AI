@@ -33,6 +33,7 @@ export function getAccountStore(user: Pick<AppUser, "id" | "provider">): Account
  */
 export function deviceRegistries(): DeviceRegistry[] {
   const out: DeviceRegistry[] = [localDeviceRegistry];
-  if (env.supabaseConfigured && env.supabaseServiceRoleKey) out.unshift(supabaseDeviceRegistry);
+  // With the service key the registry reads the tables; without it, the 0005 database functions.
+  if (env.supabaseConfigured) out.unshift(supabaseDeviceRegistry);
   return out;
 }

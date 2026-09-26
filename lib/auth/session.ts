@@ -68,6 +68,15 @@ async function isSecureRequest(): Promise<boolean> {
   return origin.startsWith("https://");
 }
 
+/** Public origin of the current request (Vercel and other proxies set the forwarded headers). */
+export async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host")?.split(",")[0].trim() || h.get("host");
+  if (!host) return h.get("origin") ?? "";
+  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim() || (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 export async function startLocalSession(user: { id: string; email: string; name: string }): Promise<void> {
   const token = await signSessionToken({ sub: user.id, email: user.email, name: user.name, sid: randomUUID() });
   const cookieStore = await cookies();

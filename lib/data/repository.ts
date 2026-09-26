@@ -6,6 +6,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAccountDashboard, getAccountLiveUpdate } from "../account/dashboard";
+import { prepareTesterAccount } from "../account/tester";
 import { isDemoUser } from "../account/store";
 import { DEFAULT_INTERVAL_S } from "../account/types";
 import type { AppUser } from "../auth/session";
@@ -168,7 +169,9 @@ export async function getShowcaseDashboard(): Promise<DashboardData> {
  * account's own farms (none for a new account) for everyone else.
  */
 export async function getDashboardFor(user: AppUser): Promise<DashboardData> {
-  return isDemoUser(user) ? getDemoDashboard() : getAccountDashboard(user);
+  if (isDemoUser(user)) return getDemoDashboard();
+  await prepareTesterAccount(user);
+  return getAccountDashboard(user);
 }
 
 export async function getFarmBundleFor(user: AppUser, farmId: string): Promise<{ data: DashboardData; bundle: FarmBundle } | null> {
@@ -187,7 +190,9 @@ function sensorsOf(data: DashboardData): Record<string, Sensor[]> {
 
 /** Live mode for this user: their own devices' readings, or the demo feed for the demo account. */
 export async function getLiveUpdateFor(user: AppUser, cursorParam: string | null): Promise<LiveUpdate> {
-  return isDemoUser(user) ? getLiveUpdate(cursorParam) : getAccountLiveUpdate(user, cursorParam);
+  if (isDemoUser(user)) return getLiveUpdate(cursorParam);
+  await prepareTesterAccount(user);
+  return getAccountLiveUpdate(user, cursorParam);
 }
 
 /**

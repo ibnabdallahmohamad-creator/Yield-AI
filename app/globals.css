@@ -67,7 +67,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Yield AI — deep green on warm sand. Single light theme, tuned for projectors and laptops. */
+/* Harvestar AI — deep green on warm sand. Single light theme, tuned for projectors and laptops. */
 :root {
   --sand-50: oklch(0.982 0.009 86);
   --sand-100: oklch(0.955 0.017 86);
@@ -392,11 +392,12 @@
 .leaflet-container.yai-wx-map {
   background: oklch(0.2 0.012 170);
 }
-.yai-wx-map .leaflet-control-attribution {
+/* One class more than leaflet.css's `.leaflet-container .leaflet-control-attribution`, which loads later. */
+.leaflet-container.yai-wx-map .leaflet-control-attribution {
   background: oklch(0.18 0.015 165 / 0.62);
   color: oklch(0.95 0.005 90 / 0.85);
 }
-.yai-wx-map .leaflet-control-attribution a {
+.leaflet-container.yai-wx-map .leaflet-control-attribution a {
   color: oklch(0.95 0.005 90);
 }
 .yai-wx-field {
@@ -445,13 +446,21 @@
   width: 11px;
   height: 11px;
 }
+/* Above the value chip, so a neighbouring farm's chip beside it stays visible */
 .yai-wx-name {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
   border-radius: 6px;
   padding: 0 7px;
   background: oklch(0.2 0.03 165 / 0.86);
   color: #fff;
   font: 600 12px/19px var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   box-shadow: 0 1px 4px oklch(0 0 0 / 0.4);
+}
+/* A hovered farm comes to the front, even when another farm's label covers it */
+.leaflet-marker-icon:has(.yai-wx-farm:hover) {
+  z-index: 100000 !important;
 }
 .yai-wx-farm:hover .yai-wx-val,
 .yai-wx-farm.is-selected .yai-wx-val {

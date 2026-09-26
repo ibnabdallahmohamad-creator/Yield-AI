@@ -18,7 +18,7 @@ export const CHART_TABS: Array<{ key: ChartTab; label: string; kind: "soil" | "w
   { key: "moisture", label: "Moisture", kind: "soil" },
   { key: "npk", label: "NPK", kind: "soil" },
   { key: "temperature", label: "Temperature", kind: "weather" },
-  { key: "rain", label: "Rain", kind: "weather" },
+  { key: "rain", label: "Water", kind: "weather" },
 ];
 
 export function isChartTab(value: unknown): value is ChartTab {
@@ -263,5 +263,5 @@ export const METHOD_LINE: Record<ChartTab, string> = {
   moisture: "Method: FAO-56 daily soil-water balance from probe moisture and weather.",
   npk: "Method: probe nutrient readings against the crop's target ranges.",
   temperature: "Method: the weather forecast against the crop's heat-stress limit.",
-  rain: "Method: forecast rain against the crop's daily water use (FAO-56).",
+  rain: "Method: rain (Open-Meteo) against the crop's daily water use ETc = Kc × ET₀ (FAO-56); the forecast uses today's Kc.",
 };

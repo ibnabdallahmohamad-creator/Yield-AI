@@ -10,19 +10,19 @@ export default function NotFound() {
         <Logo />
       </Link>
       <div className="max-w-md">
-        <p className="text-[13px] font-semibold tracking-wide text-primary uppercase">Page not found</p>
-        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight">This field is not on our map</h1>
-        <p className="mt-3 text-[15px] text-muted-foreground">
+        <p className="text-xs font-semibold tracking-wide text-primary uppercase">Page not found</p>
+        <h1 className="mt-2 font-display text-[1.75rem] leading-tight font-semibold tracking-tight sm:text-[2.25rem]">This field is not on our map</h1>
+        <p className="mt-3 text-base text-muted-foreground">
           The page you are looking for does not exist or has moved. The farms are all on the dashboard.
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-3">
-        <Button asChild className="h-10 px-4">
+        <Button asChild className="h-11 px-4">
           <Link href="/dashboard">
             <LayoutDashboard /> Open Dashboard
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-10 px-4">
+        <Button asChild variant="outline" className="h-11 px-4">
           <Link href="/">
             <ArrowLeft /> Home page
           </Link>

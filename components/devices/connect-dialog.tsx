@@ -256,13 +256,13 @@ export function ConnectDialog({
                   <li className="flex gap-3">
                     <StepNo n={1} />
                     <div>
-                      Flash the Yield AI firmware onto the ESP32 (<code className="text-xs">firmware/esp32/yield-ai-probe</code> in this project) and power it on.
+                      Flash the Harvestar AI firmware onto the ESP32 (<code className="text-xs">firmware/esp32/harvestar-probe</code> in this project) and power it on.
                     </div>
                   </li>
                   <li className="flex gap-3">
                     <StepNo n={2} />
                     <div>
-                      On your phone, join the Wi-Fi network <strong>YieldAI-Setup-…</strong> the device opens. Its setup page appears (or open <code className="text-xs">http://192.168.4.1</code>).
+                      On your phone, join the Wi-Fi network <strong>Harvestar-Setup-…</strong> the device opens. Its setup page appears (or open <code className="text-xs">http://192.168.4.1</code>).
                     </div>
                   </li>
                   <li className="flex gap-3">
